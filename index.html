@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Packing Pal</title>
+<meta name="description" content="Shared family packing list for Pat, Wendy, and Maddy.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#146B69">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Packing Pal">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --paper:#EFE7D3; --ink:#1B2B2A; --ink-soft:#5C6B62; --surface:#FBF7EC;
+  --surface-2:#F5EEDC; --line:#DCD0AF; --accent:#146B69; --accent-strong:#0E4F4E;
+  --accent-contrast:#FBF7EC; --accent-bg:#DCEAE7; --done:#3F7D53; --done-bg:#DFEBE1;
+  --critical:#B23A2E; --shadow:rgba(27,43,42,0.10);
+  --p-pat:#2B5F8A; --p-pat-bg:#DCE7F0; --p-wendy:#8C3E63; --p-wendy-bg:#F0DEE6;
+  --p-maddy:#B5701F; --p-maddy-bg:#F3E3CB;
+  --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --font-body:'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#141C1A; --ink:#EAE3D2; --ink-soft:#A8B0A6; --surface:#1B2523;
+    --surface-2:#212C29; --line:#2C3835; --accent:#4FC3B8; --accent-strong:#7BD8CE;
+    --accent-contrast:#0B1615; --accent-bg:#1E332F; --done:#6FBF8B; --done-bg:#1E3226;
+    --critical:#E2726A; --shadow:rgba(0,0,0,0.45);
+    --p-pat:#7FB0DA; --p-pat-bg:#1E2E3B; --p-wendy:#DE93B4; --p-wendy-bg:#33212A;
+    --p-maddy:#E3A957; --p-maddy-bg:#362A18;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141C1A; --ink:#EAE3D2; --ink-soft:#A8B0A6; --surface:#1B2523;
+  --surface-2:#212C29; --line:#2C3835; --accent:#4FC3B8; --accent-strong:#7BD8CE;
+  --accent-contrast:#0B1615; --accent-bg:#1E332F; --done:#6FBF8B; --done-bg:#1E3226;
+  --critical:#E2726A; --shadow:rgba(0,0,0,0.45);
+  --p-pat:#7FB0DA; --p-pat-bg:#1E2E3B; --p-wendy:#DE93B4; --p-wendy-bg:#33212A;
+  --p-maddy:#E3A957; --p-maddy-bg:#362A18;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--font-body);
+  font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
+h1,h2,h3{font-family:var(--font-display); font-weight:600; margin:0; text-wrap:balance;}
+button{font-family:var(--font-body);}
+input,select{font-family:var(--font-body); font-size:1rem;}
+a{color:inherit;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px;}
+.app-shell{max-width:640px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+.topbar{
+  position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:0.85rem 1rem;
+  display:flex; align-items:center; justify-content:space-between; gap:0.75rem;
+}
+.brand{display:flex; align-items:baseline; gap:0.4rem;}
+.brand-mark{font-family:var(--font-display); font-size:1.35rem; font-weight:700; letter-spacing:-0.01em;}
+.brand-tag{font-size:0.68rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.08em; display:none;}
+.topnav{display:flex; gap:0.4rem;}
+.navbtn{
+  background:none; border:1px solid var(--line); color:var(--ink); padding:0.4rem 0.7rem;
+  border-radius:7px; font-size:0.82rem; font-weight:600; cursor:pointer;
+}
+.navbtn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-contrast);}
+.navbtn:hover{border-color:var(--accent);}
+main{flex:1; padding:1rem 1rem 4rem;}
+.offline-banner{
+  background:var(--critical); color:#fff; font-size:0.82rem; font-weight:600;
+  padding:0.6rem 1rem; text-align:center;
+}
+.sync-note{font-size:0.72rem; color:var(--ink-soft); text-align:center; padding:0.3rem 1rem 0;}
+.loading-state{color:var(--ink-soft); font-size:0.9rem; padding:3rem 1rem; text-align:center;}
+
+/* ---- Trips view ---- */
+.section-title{font-size:1.5rem; margin-bottom:0.9rem;}
+.trip-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0.75rem;}
+.trip-card{
+  position:relative; background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:1rem 0.9rem 0.9rem; cursor:pointer; text-align:left; color:var(--ink);
+  display:flex; flex-direction:column; gap:0.55rem; min-height:118px;
+}
+.trip-card::before{
+  content:""; position:absolute; top:-6px; left:16px; width:12px; height:12px;
+  border-radius:50%; background:var(--paper); border:1px solid var(--line);
+}
+.trip-card .tname{font-family:var(--font-display); font-weight:600; font-size:1.05rem; text-wrap:balance;}
+.trip-card .tdate{font-size:0.72rem; color:var(--ink-soft);}
+.trip-card .tprog{margin-top:auto;}
+.trip-card:hover{border-color:var(--accent);}
+.new-trip-card{
+  background:transparent; border:1.5px dashed var(--line); border-radius:10px; min-height:118px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft);
+  font-weight:700; font-size:0.85rem;
+}
+.new-trip-card:hover{border-color:var(--accent); color:var(--accent);}
+.new-trip-form{
+  background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:1rem;
+  display:flex; flex-direction:column; gap:0.6rem; grid-column:1 / -1;
+}
+.empty-state{color:var(--ink-soft); font-size:0.9rem; padding:1.5rem 0.5rem; text-align:center;}
+.trip-delete-row{display:flex; justify-content:flex-end; margin-top:0.4rem;}
+
+/* ---- Progress ---- */
+.progress-bar{height:8px; background:var(--line); border-radius:5px; overflow:hidden;}
+.progress-fill{height:100%; background:var(--done); border-radius:5px; transition:width 200ms ease;}
+.progress-label{font-size:0.72rem; color:var(--ink-soft); font-variant-numeric:tabular-nums; margin-top:0.3rem;}
+
+/* ---- Pack view ---- */
+.pack-header{margin-bottom:0.9rem;}
+.back-link{
+  background:none; border:none; color:var(--ink-soft); font-size:0.78rem; font-weight:600;
+  padding:0; cursor:pointer; margin-bottom:0.35rem;
+}
+.back-link:hover{color:var(--accent);}
+.pack-title-row{display:flex; align-items:flex-start; justify-content:space-between; gap:0.6rem;}
+.trip-title{font-size:1.55rem;}
+.trip-created{font-size:0.72rem; color:var(--ink-soft); margin-top:0.15rem;}
+.filter-row{display:flex; gap:0.4rem; margin:0.9rem 0 0.7rem; flex-wrap:wrap;}
+.chip-filter{
+  border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:20px;
+  padding:0.32rem 0.75rem; font-size:0.8rem; font-weight:700; cursor:pointer;
+}
+.chip-filter.active{background:var(--accent); border-color:var(--accent); color:var(--accent-contrast);}
+.chip-filter.p-pat.active{background:var(--p-pat); border-color:var(--p-pat); color:#fff;}
+.chip-filter.p-wendy.active{background:var(--p-wendy); border-color:var(--p-wendy); color:#fff;}
+.chip-filter.p-maddy.active{background:var(--p-maddy); border-color:var(--p-maddy); color:#fff;}
+.overall-progress{margin-bottom:1.1rem;}
+
+.category-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:10px; margin-bottom:0.75rem;
+  overflow:hidden;
+}
+.category-head{
+  display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+  padding:0.7rem 0.9rem; cursor:pointer; background:var(--surface-2);
+}
+.category-head h3{font-size:0.98rem; letter-spacing:0.01em;}
+.category-count{font-size:0.72rem; color:var(--ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap;}
+.chev{transition:transform 150ms ease; color:var(--ink-soft); flex:none;}
+.chev.collapsed{transform:rotate(-90deg);}
+.item-list{list-style:none; margin:0; padding:0;}
+.item-list.collapsed{display:none;}
+.item-row{
+  display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+  padding:0.6rem 0.9rem; border-top:1px solid var(--line);
+}
+.item-name{font-size:0.92rem;}
+.chip-row{display:flex; gap:0.35rem; flex:none;}
+.pchip{
+  width:28px; height:28px; border-radius:50%; border:1.5px solid var(--line); background:var(--surface);
+  display:flex; align-items:center; justify-content:center; font-size:0.68rem; font-weight:800;
+  cursor:pointer; color:var(--ink-soft); flex:none; padding:0;
+}
+.pchip.on{color:#fff;}
+.pchip.p-pat.on{background:var(--p-pat); border-color:var(--p-pat);}
+.pchip.p-wendy.on{background:var(--p-wendy); border-color:var(--p-wendy);}
+.pchip.p-maddy.on{background:var(--p-maddy); border-color:var(--p-maddy);}
+.pchip.p-pat{border-color:var(--p-pat); color:var(--p-pat);}
+.pchip.p-wendy{border-color:var(--p-wendy); color:var(--p-wendy);}
+.pchip.p-maddy{border-color:var(--p-maddy); color:var(--p-maddy);}
+.item-row.done .item-name{color:var(--ink-soft); text-decoration:line-through;}
+
+.solo-row{
+  display:flex; align-items:center; gap:0.65rem; padding:0.65rem 0.9rem; border-top:1px solid var(--line);
+  cursor:pointer; background:none; border-left:none; border-right:none; border-bottom:none; width:100%;
+  text-align:left; color:var(--ink); font-size:0.92rem;
+}
+.solo-box{
+  width:22px; height:22px; border-radius:6px; border:1.5px solid var(--line); flex:none;
+  display:flex; align-items:center; justify-content:center; background:var(--surface);
+}
+.solo-row.done .solo-box{background:var(--done); border-color:var(--done);}
+.solo-row.done .item-name{color:var(--ink-soft); text-decoration:line-through;}
+.check-mark{color:#fff; font-size:0.8rem; line-height:1;}
+
+.bwl-card{border-color:var(--critical);}
+.bwl-card .category-head{background:var(--surface-2);}
+.bwl-label{
+  font-size:0.66rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--critical);
+  font-weight:800; margin-bottom:0.2rem; display:block;
+}
+
+/* ---- Manage view ---- */
+.manage-tabs{display:flex; gap:0.4rem; overflow-x:auto; padding-bottom:0.6rem; margin-bottom:0.9rem; scrollbar-width:thin;}
+.mtab{
+  flex:none; background:var(--surface); border:1px solid var(--line); color:var(--ink);
+  padding:0.4rem 0.75rem; border-radius:20px; font-size:0.8rem; font-weight:700; cursor:pointer;
+  white-space:nowrap;
+}
+.mtab.active{background:var(--accent); color:var(--accent-contrast); border-color:var(--accent);}
+.mtab.bwl-tab{border-color:var(--critical); color:var(--critical);}
+.mtab.bwl-tab.active{background:var(--critical); color:#fff;}
+.manage-head{display:flex; align-items:center; gap:0.5rem; margin-bottom:0.9rem;}
+.cat-name-input{
+  font-family:var(--font-display); font-size:1.3rem; font-weight:600; background:none; border:none;
+  border-bottom:2px solid transparent; color:var(--ink); flex:1; padding:0.1rem 0;
+}
+.cat-name-input:hover,.cat-name-input:focus{border-bottom-color:var(--line);}
+.iconbtn{
+  background:var(--surface); border:1px solid var(--line); color:var(--ink-soft); border-radius:7px;
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+}
+.iconbtn:hover{border-color:var(--critical); color:var(--critical);}
+.iconbtn.armed{background:var(--critical); color:#fff; border-color:var(--critical); font-size:0.68rem; width:auto; padding:0 0.5rem;}
+.manage-row{
+  display:flex; align-items:center; gap:0.55rem; padding:0.55rem 0; border-top:1px solid var(--line);
+}
+.manage-row:first-of-type{border-top:none;}
+.manage-name-input{
+  flex:1; background:var(--surface); border:1px solid var(--line); border-radius:7px; padding:0.45rem 0.6rem;
+  color:var(--ink); font-size:0.9rem; min-width:0;
+}
+.manage-name-input:focus{border-color:var(--accent);}
+.add-row-form{
+  display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; margin-top:0.9rem; padding-top:0.9rem;
+  border-top:1px dashed var(--line);
+}
+.add-row-form input[type="text"]{
+  flex:1; min-width:140px; background:var(--surface); border:1px solid var(--line); border-radius:7px;
+  padding:0.5rem 0.65rem; color:var(--ink);
+}
+.who-toggle{display:flex; gap:0.3rem;}
+.btn{
+  background:var(--accent); color:var(--accent-contrast); border:none; border-radius:7px;
+  padding:0.5rem 0.9rem; font-weight:700; font-size:0.85rem; cursor:pointer;
+}
+.btn:hover{background:var(--accent-strong);}
+.btn.ghost{background:none; color:var(--ink); border:1px solid var(--line);}
+.add-cat-form{display:flex; gap:0.4rem; align-items:center; flex:none;}
+.add-cat-form input{
+  background:var(--surface); border:1px dashed var(--line); border-radius:20px; padding:0.35rem 0.7rem;
+  font-size:0.8rem; color:var(--ink); width:9rem;
+}
+.manage-empty{color:var(--ink-soft); font-size:0.85rem; padding:0.8rem 0;}
+.people-legend{display:flex; gap:1rem; flex-wrap:wrap; font-size:0.72rem; color:var(--ink-soft); margin-bottom:1rem;}
+.people-legend span{display:inline-flex; align-items:center; gap:0.3rem;}
+.dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+.dot.p-pat{background:var(--p-pat);} .dot.p-wendy{background:var(--p-wendy);} .dot.p-maddy{background:var(--p-maddy);}
+::-webkit-scrollbar{height:6px;}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading-state">Loading Packing Pal…</div></div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+  collection, onSnapshot
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+/* ---------------------------------------------------------------------
+   Firebase — this project's data lives in Cloud Firestore, synced live
+   to every device with this page open. No publish limits, no "shared
+   version" to fall behind, and edits below write to a single field or
+   document at a time so two people changing different things can never
+   clobber each other.
+--------------------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDZV7aDhVJNXLVdxtlUrDwZasaO1lC5HAM",
+  authDomain: "packing-pal-6e96b.firebaseapp.com",
+  projectId: "packing-pal-6e96b",
+  storageBucket: "packing-pal-6e96b.firebasestorage.app",
+  messagingSenderId: "546025854309",
+  appId: "1:546025854309:web:bd07ec84af0b27426c3d8c"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
+/* ---------------------------------------------------------------------
+   PEOPLE
+--------------------------------------------------------------------- */
+const PEOPLE = [
+  {id:'pat', name:'Pat'},
+  {id:'wendy', name:'Wendy'},
+  {id:'maddy', name:'Maddy'}
+];
+function personName(id){ const p = PEOPLE.find(p=>p.id===id); return p ? p.name : id; }
+
+/* ---------------------------------------------------------------------
+   LOCAL (per-device, unsynced) UI STATE
+--------------------------------------------------------------------- */
+let UI = { view:'trips', currentTripId:null, packFilter:'all', manageTab:null, addingTrip:false };
+(function restoreUI(){
+  try {
+    const raw = sessionStorage.getItem('packingpal-ui');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object'){
+        if (saved.view) UI.view = saved.view;
+        if (saved.currentTripId) UI.currentTripId = saved.currentTripId;
+        if (saved.packFilter) UI.packFilter = saved.packFilter;
+        if (saved.manageTab) UI.manageTab = saved.manageTab;
+        if (typeof saved.scrollY === 'number') UI._restoreScrollY = saved.scrollY;
+      }
+      return;
+    }
+  } catch(e){}
+  try {
+    const savedTrip = localStorage.getItem('packingpal-current-trip');
+    if (savedTrip) UI.currentTripId = savedTrip;
+  } catch(e){}
+})();
+function saveUISnapshot(){
+  try {
+    sessionStorage.setItem('packingpal-ui', JSON.stringify({
+      view: UI.view, currentTripId: UI.currentTripId, packFilter: UI.packFilter,
+      manageTab: UI.manageTab, scrollY: window.scrollY
+    }));
+  } catch(e){}
+}
+let armedDeletes = new Set();
+let collapsedCats = new Set();
+let offlineMode = false;
+
+/* ---------------------------------------------------------------------
+   STATE — filled in live by Firestore listeners, not read from the page
+--------------------------------------------------------------------- */
+let STATE = { master: { categories: [], beforeWeLeave: [] }, trips: [] };
+let masterLoaded = false;
+let tripsLoaded = false;
+
+/* ---------------------------------------------------------------------
+   Helpers
+--------------------------------------------------------------------- */
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function uid(prefix){
+  return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+function findTrip(id){ return STATE.trips.find(t => t.id === id); }
+function findCategory(id){ return STATE.master.categories.find(c => c.id === id); }
+function computeProgress(items, packed, filterPerson){
+  let total = 0, done = 0;
+  items.forEach(it => {
+    const who = filterPerson === 'all' ? it.who : it.who.filter(p => p === filterPerson);
+    who.forEach(p => { total++; if (packed[it.id] && packed[it.id][p]) done++; });
+  });
+  return {total, done};
+}
+function fmtDate(iso){
+  try { return new Date(iso).toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'}); }
+  catch(e){ return ''; }
+}
+
+/* ---------------------------------------------------------------------
+   Mutations — each updates local STATE for instant feedback, then
+   writes only the relevant Firestore document/field so unrelated data
+   (other trips, other people's ticks) is never touched by this write.
+--------------------------------------------------------------------- */
+function createTrip(name){
+  const trip = {
+    id: uid('trip'),
+    name: name.trim() || 'New trip',
+    createdAt: new Date().toISOString(),
+    categories: JSON.parse(JSON.stringify(STATE.master.categories)),
+    beforeWeLeave: JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)),
+    packed: {}
+  };
+  STATE.trips.unshift(trip);
+  UI.currentTripId = trip.id;
+  UI.view = 'pack';
+  UI.packFilter = 'all';
+  try { localStorage.setItem('packingpal-current-trip', trip.id); } catch(e){}
+  setDoc(doc(db, 'trips', trip.id), trip).catch(handleSaveError);
+}
+function deleteTrip(id){
+  STATE.trips = STATE.trips.filter(t => t.id !== id);
+  if (UI.currentTripId === id){ UI.currentTripId = null; UI.view = 'trips'; }
+  deleteDoc(doc(db, 'trips', id)).catch(handleSaveError);
+}
+function togglePacked(tripId, itemId, personId){
+  const trip = findTrip(tripId);
+  if (!trip) return;
+  trip.packed[itemId] = trip.packed[itemId] || {};
+  trip.packed[itemId][personId] = !trip.packed[itemId][personId];
+  const fieldPath = 'packed.' + itemId + '.' + personId;
+  updateDoc(doc(db, 'trips', tripId), { [fieldPath]: trip.packed[itemId][personId] }).catch(handleSaveError);
+}
+function addItem(catId, name, who){
+  const cat = findCategory(catId);
+  if (!cat || !name.trim()) return;
+  cat.items.push({id: uid('item'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
+  scheduleMasterSave();
+}
+function deleteItem(catId, itemId){
+  const cat = findCategory(catId);
+  if (!cat) return;
+  cat.items = cat.items.filter(i => i.id !== itemId);
+  scheduleMasterSave();
+}
+function toggleItemAssignee(catId, itemId, personId){
+  const cat = findCategory(catId);
+  if (!cat) return;
+  const item = cat.items.find(i => i.id === itemId);
+  if (!item) return;
+  const idx = item.who.indexOf(personId);
+  if (idx === -1) item.who.push(personId); else item.who.splice(idx,1);
+  scheduleMasterSave();
+}
+function addCategory(name){
+  if (!name.trim()) return;
+  const cat = {id: uid('cat'), name: name.trim(), items: []};
+  STATE.master.categories.push(cat);
+  UI.manageTab = cat.id;
+  scheduleMasterSave();
+}
+function deleteCategory(catId){
+  STATE.master.categories = STATE.master.categories.filter(c => c.id !== catId);
+  if (UI.manageTab === catId) UI.manageTab = null;
+  scheduleMasterSave();
+}
+function addBwl(name, who){
+  if (!name.trim()) return;
+  STATE.master.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
+  scheduleMasterSave();
+}
+function deleteBwl(itemId){
+  STATE.master.beforeWeLeave = STATE.master.beforeWeLeave.filter(i => i.id !== itemId);
+  scheduleMasterSave();
+}
+function toggleBwlAssignee(itemId, personId){
+  const item = STATE.master.beforeWeLeave.find(i => i.id === itemId);
+  if (!item) return;
+  const idx = item.who.indexOf(personId);
+  if (idx === -1) item.who.push(personId); else item.who.splice(idx,1);
+  scheduleMasterSave();
+}
+
+/* ---------------------------------------------------------------------
+   Saving the master list — batched with a short debounce so a burst of
+   edits (typing a name, ticking several assignee chips) becomes one
+   write, not one per keystroke/tap. Trips are never touched by this.
+--------------------------------------------------------------------- */
+let masterSaveTimer = null;
+function scheduleMasterSave(){
+  clearTimeout(masterSaveTimer);
+  masterSaveTimer = setTimeout(() => {
+    setDoc(doc(db, 'state', 'master'), STATE.master).catch(handleSaveError);
+  }, 800);
+}
+function flushMasterSaveNow(){
+  clearTimeout(masterSaveTimer);
+  setDoc(doc(db, 'state', 'master'), STATE.master).catch(handleSaveError);
+}
+function handleSaveError(err){
+  console.warn('Packing Pal: save failed', err);
+}
+
+/* ---------------------------------------------------------------------
+   Rendering
+--------------------------------------------------------------------- */
+function render(){
+  const app = document.getElementById('app');
+  if (!masterLoaded || !tripsLoaded){
+    app.innerHTML = '<div class="loading-state">Loading Packing Pal…</div>';
+    return;
+  }
+  let body = '';
+  if (offlineMode){
+    body += '<div class="offline-banner">You’re offline — changes will sync once you’re back online.</div>';
+  }
+  body += '<div class="app-shell">';
+  body += renderTopbar();
+  body += '<main>';
+  if (UI.view === 'manage') body += renderManage();
+  else if (UI.view === 'pack' && UI.currentTripId && findTrip(UI.currentTripId)) body += renderPack();
+  else { UI.view = 'trips'; body += renderTrips(); }
+  body += '</main></div>';
+  app.innerHTML = body;
+}
+
+function renderTopbar(){
+  return '<div class="topbar">' +
+    '<div class="brand"><span class="brand-mark">Packing Pal</span></div>' +
+    '<div class="topnav">' +
+      '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
+      '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
+    '</div></div>';
+}
+
+function renderTrips(){
+  let html = '<h1 class="section-title">Your trips</h1>';
+  html += '<div class="trip-grid">';
+  if (STATE.trips.length === 0 && !UI.addingTrip){
+    html += '<div class="new-trip-card" data-action="show-new-trip">+ New trip</div>';
+  } else {
+    STATE.trips.forEach(trip => {
+      const prog = computeProgress(allTripItems(trip), trip.packed, 'all');
+      const pct = prog.total ? Math.round((prog.done/prog.total)*100) : 0;
+      html += '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' +
+        '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
+        '<span class="tdate">Created ' + fmtDate(trip.createdAt) + '</span>' +
+        '<span class="tprog"><span class="progress-bar"><span class="progress-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>' +
+        '</button>';
+    });
+    if (UI.addingTrip){
+      html += '<form class="new-trip-form" data-action="create-trip">' +
+        '<input type="text" name="name" placeholder="Trip name, e.g. NZ — Dec 2026" autofocus required>' +
+        '<div style="display:flex; gap:0.5rem;"><button type="submit" class="btn">Create trip</button>' +
+        '<button type="button" class="btn ghost" data-action="hide-new-trip">Cancel</button></div></form>';
+    } else {
+      html += '<div class="new-trip-card" data-action="show-new-trip">+ New trip</div>';
+    }
+  }
+  html += '</div>';
+  if (STATE.trips.length === 0 && !UI.addingTrip){
+    html += '<p class="empty-state">Every new trip starts with a full copy of your master list — you can hide or ignore anything that doesn’t apply this time, and edit the master list itself anytime from “Manage list”.</p>';
+  }
+  return html;
+}
+function allTripItems(trip){
+  let items = [];
+  trip.categories.forEach(c => items = items.concat(c.items));
+  return items;
+}
+
+function renderPack(){
+  const trip = findTrip(UI.currentTripId);
+  const filter = UI.packFilter;
+  let html = '<div class="pack-header">';
+  html += '<button class="back-link" data-action="go-trips">← All trips</button>';
+  html += '<div class="pack-title-row"><div><h1 class="trip-title">' + escapeHtml(trip.name) + '</h1>' +
+    '<div class="trip-created">Created ' + fmtDate(trip.createdAt) + '</div></div>' +
+    deleteButton('delete-trip', trip.id, 'Delete trip') + '</div>';
+  html += '</div>';
+
+  html += '<div class="filter-row">';
+  html += '<button class="chip-filter' + (filter==='all'?' active':'') + '" data-action="set-filter" data-person="all">All</button>';
+  PEOPLE.forEach(p => {
+    html += '<button class="chip-filter p-' + p.id + (filter===p.id?' active':'') + '" data-action="set-filter" data-person="' + p.id + '">' + p.name + '</button>';
+  });
+  html += '</div>';
+
+  const overall = computeProgress(allTripItems(trip), trip.packed, filter);
+  const pct = overall.total ? Math.round((overall.done/overall.total)*100) : 0;
+  html += '<div class="overall-progress"><div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+    '<div class="progress-label">' + overall.done + ' / ' + overall.total + ' packed' + (filter!=='all' ? ' · ' + personName(filter) : '') + '</div></div>';
+
+  trip.categories.forEach(cat => {
+    let visibleItems = filter === 'all' ? cat.items : cat.items.filter(i => i.who.includes(filter));
+    if (visibleItems.length === 0) return;
+    visibleItems = sortPackItems(visibleItems, trip, filter);
+    const prog = computeProgress(visibleItems, trip.packed, filter);
+    const collapsed = collapsedCats.has(cat.id);
+    html += '<section class="category-card"><div class="category-head" data-action="toggle-collapse" data-cat="' + cat.id + '">' +
+      '<h3>' + escapeHtml(cat.name) + '</h3>' +
+      '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + prog.done + '/' + prog.total + '</span>' +
+      chevSvg(collapsed) + '</span></div>';
+    html += '<ul class="item-list' + (collapsed?' collapsed':'') + '">';
+    visibleItems.forEach(item => { html += renderPackRow(trip, item, filter); });
+    html += '</ul></section>';
+  });
+
+  let bwlItems = filter === 'all' ? trip.beforeWeLeave : trip.beforeWeLeave.filter(i => i.who.includes(filter));
+  if (bwlItems.length){
+    bwlItems = sortPackItems(bwlItems, trip, filter);
+    const bwlProg = computeProgress(bwlItems, trip.packed, filter);
+    const collapsed = collapsedCats.has('__bwl');
+    html += '<section class="category-card bwl-card"><div class="category-head" data-action="toggle-collapse" data-cat="__bwl">' +
+      '<h3><span class="bwl-label">Before we leave</span>Last checks at home</h3>' +
+      '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
+      chevSvg(collapsed) + '</span></div>';
+    html += '<ul class="item-list' + (collapsed?' collapsed':'') + '">';
+    bwlItems.forEach(item => { html += renderPackRow(trip, item, filter); });
+    html += '</ul></section>';
+  }
+  return html;
+}
+function chevSvg(collapsed){
+  return '<svg class="chev' + (collapsed?' collapsed':'') + '" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+/* An item counts as "done" for sorting purposes on the person filter as
+   soon as that person ticks it; on "All" it only counts once every person
+   it's assigned to has ticked their own part, so it doesn't disappear from
+   someone else's view before their share is packed. */
+function isItemPackDone(trip, item, filter){
+  if (filter === 'all'){
+    return item.who.length > 0 && item.who.every(p => trip.packed[item.id] && trip.packed[item.id][p]);
+  }
+  return !!(trip.packed[item.id] && trip.packed[item.id][filter]);
+}
+function sortPackItems(items, trip, filter){
+  return items
+    .map((item, idx) => ({item, idx, done: isItemPackDone(trip, item, filter) ? 1 : 0}))
+    .sort((a, b) => (a.done - b.done) || (a.idx - b.idx))
+    .map(x => x.item);
+}
+function renderPackRow(trip, item, filter){
+  if (filter === 'all'){
+    let chips = '';
+    item.who.forEach(p => {
+      const on = !!(trip.packed[item.id] && trip.packed[item.id][p]);
+      chips += '<button class="pchip p-' + p + (on?' on':'') + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + personName(p) + '">' + (on ? '✓' : p.charAt(0).toUpperCase()) + '</button>';
+    });
+    const allDone = isItemPackDone(trip, item, 'all');
+    return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + chips + '</span></li>';
+  }
+  const on = !!(trip.packed[item.id] && trip.packed[item.id][filter]);
+  return '<li><button class="solo-row' + (on?' done':'') + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
+    '<span class="solo-box">' + (on ? '<span class="check-mark">✓</span>' : '') + '</span>' +
+    '<span class="item-name">' + escapeHtml(item.name) + '</span></button></li>';
+}
+
+function renderManage(){
+  const cats = STATE.master.categories;
+  if (!UI.manageTab) UI.manageTab = cats.length ? cats[0].id : '__bwl';
+  let html = '<h1 class="section-title">Manage master list</h1>';
+  html += '<div class="people-legend">';
+  PEOPLE.forEach(p => { html += '<span><span class="dot p-' + p.id + '"></span>' + p.name + '</span>'; });
+  html += '</div>';
+  html += '<p class="empty-state" style="padding:0 0 1rem;text-align:left;">Changes here shape every <em>future</em> trip. Trips you’ve already created keep the list they started with.</p>';
+
+  html += '<div class="manage-tabs">';
+  cats.forEach(c => {
+    html += '<button class="mtab' + (UI.manageTab===c.id?' active':'') + '" data-action="manage-tab" data-cat="' + c.id + '">' + escapeHtml(c.name) + '</button>';
+  });
+  html += '<button class="mtab bwl-tab' + (UI.manageTab==='__bwl'?' active':'') + '" data-action="manage-tab" data-cat="__bwl">Before we leave</button>';
+  html += '<form class="add-cat-form" data-action="add-category"><input type="text" name="name" placeholder="+ New category"></form>';
+  html += '</div>';
+
+  if (UI.manageTab === '__bwl'){
+    html += renderManageBwl();
+  } else {
+    const cat = findCategory(UI.manageTab);
+    if (cat) html += renderManageCategory(cat);
+  }
+  return html;
+}
+function deleteButton(action, id, label){
+  const key = action + ':' + id;
+  const armed = armedDeletes.has(key);
+  return '<button class="iconbtn' + (armed?' armed':'') + '" data-action="' + action + '" data-id="' + id + '" title="' + label + '">' +
+    (armed ? 'Confirm?' : trashSvg()) + '</button>';
+}
+function trashSvg(){
+  return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M6 4V2.5h4V4M4.5 4l.6 9.2a1 1 0 001 .8h3.8a1 1 0 001-.8L11.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function renderManageCategory(cat){
+  let html = '<div class="manage-head"><input class="cat-name-input" type="text" value="' + escapeHtml(cat.name) + '" data-field="cat-name" data-cat="' + cat.id + '">' +
+    deleteButton('delete-category', cat.id, 'Delete category') + '</div>';
+  if (cat.items.length === 0) html += '<p class="manage-empty">No items yet — add one below.</p>';
+  cat.items.forEach(item => {
+    html += '<div class="manage-row"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="item-name" data-cat="' + cat.id + '" data-item="' + item.id + '">';
+    html += '<span class="who-toggle">';
+    PEOPLE.forEach(p => {
+      const on = item.who.includes(p.id);
+      html += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-item-assignee" data-cat="' + cat.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+    });
+    html += '</span>';
+    html += deleteButton('delete-item', cat.id + '::' + item.id, 'Delete item');
+    html += '</div>';
+  });
+  html += '<form class="add-row-form" data-action="add-item" data-cat="' + cat.id + '">' +
+    '<input type="text" name="name" placeholder="Add item to ' + escapeHtml(cat.name) + '…" required>' +
+    '<span class="who-toggle">';
+  PEOPLE.forEach(p => {
+    html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
+  });
+  html += '</span><button type="submit" class="btn">Add item</button></form>';
+  return html;
+}
+function renderManageBwl(){
+  const items = STATE.master.beforeWeLeave;
+  let html = '<div class="manage-head"><h2 style="font-size:1.3rem;">Before we leave</h2></div>';
+  if (items.length === 0) html += '<p class="manage-empty">No reminders yet — add one below.</p>';
+  items.forEach(item => {
+    html += '<div class="manage-row"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="before-name" data-item="' + item.id + '">';
+    html += '<span class="who-toggle">';
+    PEOPLE.forEach(p => {
+      const on = item.who.includes(p.id);
+      html += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-before-assignee" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+    });
+    html += '</span>';
+    html += deleteButton('delete-before', item.id, 'Delete reminder');
+    html += '</div>';
+  });
+  html += '<form class="add-row-form" data-action="add-before">' +
+    '<input type="text" name="name" placeholder="Add a before-we-leave reminder…" required>' +
+    '<span class="who-toggle">';
+  PEOPLE.forEach(p => {
+    html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
+  });
+  html += '</span><button type="submit" class="btn">Add reminder</button></form>';
+  return html;
+}
+
+/* ---------------------------------------------------------------------
+   Event delegation
+--------------------------------------------------------------------- */
+function armDelete(key){
+  armedDeletes.add(key);
+  render();
+  setTimeout(() => { armedDeletes.delete(key); render(); }, 3000);
+}
+function handleDelete(action, id){
+  const key = action + ':' + id;
+  if (!armedDeletes.has(key)){ armDelete(key); return; }
+  armedDeletes.delete(key);
+  if (action === 'delete-trip') deleteTrip(id);
+  else if (action === 'delete-category') deleteCategory(id);
+  else if (action === 'delete-item'){ const [catId,itemId] = id.split('::'); deleteItem(catId,itemId); }
+  else if (action === 'delete-before') deleteBwl(id);
+  render();
+}
+
+document.addEventListener('click', function(e){
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const action = el.dataset.action;
+  switch(action){
+    case 'go-trips':
+      if (UI.view === 'manage') flushMasterSaveNow();
+      UI.view = 'trips'; saveUISnapshot(); render(); break;
+    case 'go-manage': UI.view = 'manage'; saveUISnapshot(); render(); break;
+    case 'show-new-trip': UI.addingTrip = true; render(); break;
+    case 'hide-new-trip': UI.addingTrip = false; render(); break;
+    case 'open-trip':
+      if (UI.view === 'manage') flushMasterSaveNow();
+      UI.currentTripId = el.dataset.trip; UI.view = 'pack'; UI.packFilter = 'all';
+      try { localStorage.setItem('packingpal-current-trip', el.dataset.trip); } catch(err){}
+      saveUISnapshot();
+      render();
+      break;
+    case 'set-filter': UI.packFilter = el.dataset.person; saveUISnapshot(); render(); break;
+    case 'toggle-collapse':
+      { const c = el.dataset.cat; if (collapsedCats.has(c)) collapsedCats.delete(c); else collapsedCats.add(c); render(); }
+      break;
+    case 'toggle-chip':
+      togglePacked(UI.currentTripId, el.dataset.item, el.dataset.person);
+      render();
+      break;
+    case 'manage-tab': UI.manageTab = el.dataset.cat; saveUISnapshot(); render(); break;
+    case 'toggle-item-assignee':
+      toggleItemAssignee(el.dataset.cat, el.dataset.item, el.dataset.person);
+      render();
+      break;
+    case 'toggle-before-assignee':
+      toggleBwlAssignee(el.dataset.item, el.dataset.person);
+      render();
+      break;
+    case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before':
+      handleDelete(action, el.dataset.id);
+      break;
+  }
+});
+
+document.addEventListener('submit', function(e){
+  const form = e.target.closest('[data-action]');
+  if (!form) return;
+  e.preventDefault();
+  const action = form.dataset.action;
+  const fd = new FormData(form);
+  if (action === 'create-trip'){
+    createTrip(fd.get('name') || 'New trip');
+    UI.addingTrip = false;
+    render();
+  } else if (action === 'add-item'){
+    const who = fd.getAll('who');
+    addItem(form.dataset.cat, fd.get('name') || '', who);
+    render();
+  } else if (action === 'add-before'){
+    const who = fd.getAll('who');
+    addBwl(fd.get('name') || '', who);
+    render();
+  } else if (action === 'add-category'){
+    addCategory(fd.get('name') || '');
+    render();
+  }
+});
+
+document.addEventListener('input', function(e){
+  const el = e.target;
+  const field = el.dataset && el.dataset.field;
+  if (!field) return;
+  if (field === 'item-name'){
+    const cat = findCategory(el.dataset.cat);
+    const item = cat && cat.items.find(i => i.id === el.dataset.item);
+    if (item) item.name = el.value;
+  } else if (field === 'cat-name'){
+    const cat = findCategory(el.dataset.cat);
+    if (cat) cat.name = el.value;
+  } else if (field === 'before-name'){
+    const item = STATE.master.beforeWeLeave.find(i => i.id === el.dataset.item);
+    if (item) item.name = el.value;
+  }
+  scheduleMasterSave();
+});
+
+// "Add item" / "Add reminder" forms: the who-toggle chips are plain
+// label+checkbox pairs (not yet part of STATE), so just keep their own
+// look in sync directly — letter visible only while checked, matching the
+// same "letter shown = assigned" rule as the saved items above.
+document.addEventListener('change', function(e){
+  const cb = e.target;
+  if (!cb.matches('input[type="checkbox"][name="who"]')) return;
+  const label = cb.closest('label.pchip');
+  if (!label) return;
+  label.classList.toggle('on', cb.checked);
+  const letter = label.querySelector('.pchip-letter');
+  if (letter) letter.style.visibility = cb.checked ? 'visible' : 'hidden';
+});
+
+/* ---------------------------------------------------------------------
+   Boot — live Firestore listeners. The master-list listener only
+   re-renders while the Manage screen is open (that's the only view
+   showing master data), and the trips listener only re-renders while
+   the Trips list or a Pack screen is open, so an unrelated update never
+   yanks focus out from under someone mid-edit elsewhere in the app.
+--------------------------------------------------------------------- */
+function boot(){
+  render();
+  if (typeof UI._restoreScrollY === 'number'){
+    window.scrollTo(0, UI._restoreScrollY);
+    delete UI._restoreScrollY;
+  }
+
+  onSnapshot(doc(db, 'state', 'master'),
+    (snap) => {
+      if (snap.exists()) STATE.master = snap.data();
+      const wasLoaded = masterLoaded;
+      masterLoaded = true;
+      // Always render the first time this arrives (that's what clears the
+      // initial loading screen, whichever view we're on) — after that,
+      // only the Manage screen actually shows master data.
+      if (!wasLoaded || UI.view === 'manage') render();
+    },
+    (err) => { console.warn('Packing Pal: master listener error', err); }
+  );
+
+  onSnapshot(collection(db, 'trips'),
+    (snap) => {
+      const trips = snap.docs.map(d => d.data());
+      trips.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+      STATE.trips = trips;
+      const wasLoaded = tripsLoaded;
+      tripsLoaded = true;
+      if (!wasLoaded || UI.view === 'trips' || UI.view === 'pack') render();
+    },
+    (err) => { console.warn('Packing Pal: trips listener error', err); }
+  );
+
+  window.addEventListener('online', () => { offlineMode = false; render(); });
+  window.addEventListener('offline', () => { offlineMode = true; render(); });
+  offlineMode = !navigator.onLine;
+}
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && UI.view === 'manage') flushMasterSaveNow();
+});
+addEventListener('pagehide', () => {
+  if (UI.view === 'manage') flushMasterSaveNow();
+});
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
