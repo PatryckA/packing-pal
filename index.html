@@ -702,7 +702,10 @@ function sortPackItems(items, trip, filter){
     .map(x => x.item);
 }
 function moveTripBwlButton(trip, itemId){
-  return '<button class="iconbtn" data-action="move-trip-item-to-bwl" data-trip="' + trip.id + '" data-item="' + itemId + '" title="Not ready to pack — move to before we leave">' + moveToBwlSvg() + '</button>';
+  return '<button class="iconbtn" data-action="move-trip-item-to-bwl" data-trip="' + trip.id + '" data-item="' + itemId + '" title="Not ready to pack — move to before we leave">' + clockSvg() + '</button>';
+}
+function clockSvg(){
+  return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.3L10.4 9.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function renderPackRow(trip, item, filter, isBwl){
   if (filter === 'all'){
