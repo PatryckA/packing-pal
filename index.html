@@ -303,7 +303,8 @@ const LOCATIONS = [
   {id:'office', name:'Office'},
   {id:'maddysroom', name:"Maddy's Room"},
   {id:'downstairs', name:'Downstairs'},
-  {id:'garage', name:'Garage'}
+  {id:'garage', name:'Garage'},
+  {id:'car', name:'Car'}
 ];
 function locationName(id){ const l = LOCATIONS.find(l=>l.id===id); return l ? l.name : 'Unsorted'; }
 
@@ -408,6 +409,15 @@ function togglePacked(tripId, itemId, personId){
   trip.packed[itemId][personId] = !trip.packed[itemId][personId];
   const fieldPath = 'packed.' + itemId + '.' + personId;
   updateDoc(doc(db, 'trips', tripId), { [fieldPath]: trip.packed[itemId][personId] }).catch(handleSaveError);
+}
+// Adds a reminder to THIS trip's own before-we-leave list only — it
+// won't appear on other trips and won't change the master list, since
+// this is for something specific you thought of while packing this trip.
+function addTripBwl(tripId, name, who){
+  const trip = findTrip(tripId);
+  if (!trip || !name.trim()) return;
+  trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
+  updateDoc(doc(db, 'trips', tripId), { beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
 function addItem(catId, name, who, location){
   const cat = findCategory(catId);
@@ -603,18 +613,27 @@ function renderPack(){
   }
 
   let bwlItems = filter === 'all' ? trip.beforeWeLeave : trip.beforeWeLeave.filter(i => i.who.includes(filter));
-  if (bwlItems.length){
-    bwlItems = sortPackItems(bwlItems, trip, filter);
-    const bwlProg = computeProgress(bwlItems, trip.packed, filter);
-    const collapsed = collapsedCats.has('__bwl');
-    html += '<section class="category-card bwl-card"><div class="category-head" data-action="toggle-collapse" data-cat="__bwl">' +
-      '<h3><span class="bwl-label">Before we leave</span>Last checks at home</h3>' +
-      '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
-      chevSvg(collapsed) + '</span></div>';
-    html += '<ul class="item-list' + (collapsed?' collapsed':'') + '">';
-    bwlItems.forEach(item => { html += renderPackRow(trip, item, filter); });
-    html += '</ul></section>';
+  bwlItems = sortPackItems(bwlItems, trip, filter);
+  const bwlProg = computeProgress(bwlItems, trip.packed, filter);
+  const bwlCollapsed = collapsedCats.has('__bwl');
+  html += '<section class="category-card bwl-card"><div class="category-head" data-action="toggle-collapse" data-cat="__bwl">' +
+    '<h3><span class="bwl-label">Before we leave</span>Last checks at home</h3>' +
+    '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
+    chevSvg(bwlCollapsed) + '</span></div>';
+  html += '<ul class="item-list' + (bwlCollapsed?' collapsed':'') + '">';
+  bwlItems.forEach(item => { html += renderPackRow(trip, item, filter); });
+  if (bwlItems.length === 0) html += '<li class="manage-empty" style="padding:0.6rem 0.9rem;">Nothing here yet.</li>';
+  html += '</ul>';
+  if (!bwlCollapsed){
+    html += '<div style="padding:0 0.9rem 0.9rem;"><form class="add-row-form" data-action="add-trip-before" data-trip="' + trip.id + '">' +
+      '<input type="text" name="name" placeholder="Add a reminder for this trip…" required>' +
+      '<span class="who-toggle">';
+    PEOPLE.forEach(p => {
+      html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
+    });
+    html += '</span><button type="submit" class="btn">Add</button></form></div>';
   }
+  html += '</section>';
   return html;
 }
 // Shared renderer for one category-card section, used both for
@@ -845,6 +864,11 @@ document.addEventListener('submit', function(e){
     render();
   } else if (action === 'add-category'){
     addCategory(fd.get('name') || '');
+    render();
+  } else if (action === 'add-trip-before'){
+    const who = fd.getAll('who');
+    addTripBwl(form.dataset.trip, fd.get('name') || '', who);
+    form.reset();
     render();
   }
 });
