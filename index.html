@@ -441,6 +441,18 @@ function deleteItem(catId, itemId){
   cat.items = cat.items.filter(i => i.id !== itemId);
   scheduleMasterSave();
 }
+// Reclassifies a packable item as a before-we-leave reminder — removes
+// it from its category (location no longer applies) and keeps its name
+// and who-assignment. This only shapes future trips, same as any other
+// master-list edit.
+function moveItemToBwl(catId, itemId){
+  const cat = findCategory(catId);
+  const item = cat && cat.items.find(i => i.id === itemId);
+  if (!item) return;
+  cat.items = cat.items.filter(i => i.id !== itemId);
+  STATE.master.beforeWeLeave.push({id: item.id, name: item.name, who: item.who});
+  scheduleMasterSave();
+}
 function toggleItemAssignee(catId, itemId, personId){
   const cat = findCategory(catId);
   if (!cat) return;
@@ -723,6 +735,12 @@ function deleteButton(action, id, label){
 function trashSvg(){
   return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M6 4V2.5h4V4M4.5 4l.6 9.2a1 1 0 001 .8h3.8a1 1 0 001-.8L11.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
+function moveToBwlButton(catId, itemId){
+  return '<button class="iconbtn" data-action="move-to-bwl" data-cat="' + catId + '" data-item="' + itemId + '" title="Move to before we leave">' + moveToBwlSvg() + '</button>';
+}
+function moveToBwlSvg(){
+  return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 3.5h7M2 8h4.5M2 12.5h4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10 9.3l1.6 1.6L14.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
 function renderManageCategory(cat){
   let html = '<div class="manage-head"><input class="cat-name-input" type="text" value="' + escapeHtml(cat.name) + '" data-field="cat-name" data-cat="' + cat.id + '">' +
     deleteButton('delete-category', cat.id, 'Delete category') + '</div>';
@@ -735,6 +753,7 @@ function renderManageCategory(cat){
       html += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-item-assignee" data-cat="' + cat.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
     });
     html += '</span>';
+    html += moveToBwlButton(cat.id, item.id);
     html += deleteButton('delete-item', cat.id + '::' + item.id, 'Delete item');
     html += '<label class="location-row">Kept in: ' + locationSelectHtml(item.location, cat.id, item.id) + '</label>';
     html += '</div>';
@@ -840,6 +859,10 @@ document.addEventListener('click', function(e){
       break;
     case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before':
       handleDelete(action, el.dataset.id);
+      break;
+    case 'move-to-bwl':
+      moveItemToBwl(el.dataset.cat, el.dataset.item);
+      render();
       break;
   }
 });
