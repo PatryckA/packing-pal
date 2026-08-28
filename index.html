@@ -292,12 +292,41 @@ const PEOPLE = [
 ];
 function personName(id){ const p = PEOPLE.find(p=>p.id===id); return p ? p.name : id; }
 
+// Trip-specific extra people (feature: add someone beyond Pat/Wendy/Maddy
+// to just one trip) don't have a CSS class of their own since their id is
+// generated at add-time — this small palette is assigned by position and
+// applied as inline styles instead.
+const EXTRA_PERSON_COLORS = ['#6B5B95', '#C97C5D', '#4C8577', '#A85751', '#3E6B8A'];
+function tripPeople(trip){ return PEOPLE.concat((trip && trip.extraPeople) || []); }
+function personNameInTrip(trip, id){
+  const base = PEOPLE.find(p => p.id === id);
+  if (base) return base.name;
+  const extra = ((trip && trip.extraPeople) || []).find(p => p.id === id);
+  return extra ? extra.name : id;
+}
+// Returns the class/style to use for a person chip. Base people (pat/
+// wendy/maddy) use the existing CSS classes; anyone added to a specific
+// trip gets an inline colour from the palette above, since a CSS rule
+// can't target an id that doesn't exist until someone adds them.
+function personChipAttrs(trip, personId, on){
+  if (personId === 'pat' || personId === 'wendy' || personId === 'maddy'){
+    return { cls: 'p-' + personId, style: '' };
+  }
+  const idx = trip ? (trip.extraPeople || []).findIndex(p => p.id === personId) : -1;
+  const c = EXTRA_PERSON_COLORS[idx >= 0 ? idx % EXTRA_PERSON_COLORS.length : 0];
+  const style = on ? ('background:' + c + ';border-color:' + c + ';color:#fff;') : ('border-color:' + c + ';color:' + c + ';');
+  return { cls: '', style: style };
+}
+
 /* ---------------------------------------------------------------------
    LOCATIONS — where an item is kept in the house. Used by the Manage
    list screen (per-item dropdown) and the Pack screen's "by location"
-   sort. Unlike PEOPLE, an item has at most one location.
+   sort. Unlike PEOPLE, an item has at most one location. Stored on the
+   master list itself (STATE.master.locations) so new locations can be
+   added from the Manage screen and everyone sees them; this fallback
+   list is only used until that field exists.
 --------------------------------------------------------------------- */
-const LOCATIONS = [
+const DEFAULT_LOCATIONS = [
   {id:'bedroom', name:'Bedroom'},
   {id:'bathroom', name:'Bathroom'},
   {id:'linen', name:'Linen closet'},
@@ -307,12 +336,31 @@ const LOCATIONS = [
   {id:'garage', name:'Garage'},
   {id:'car', name:'Car'}
 ];
-function locationName(id){ const l = LOCATIONS.find(l=>l.id===id); return l ? l.name : 'Unsorted'; }
+function getLocations(){
+  return (STATE.master.locations && STATE.master.locations.length) ? STATE.master.locations : DEFAULT_LOCATIONS;
+}
+function locationName(id){ const l = getLocations().find(l=>l.id===id); return l ? l.name : 'Unsorted'; }
+
+/* ---------------------------------------------------------------------
+   CONDITIONS — the quick yes/no questions asked when creating a trip.
+   An item tagged with one of these only appears on a trip if that
+   question was answered yes; an untagged item always appears.
+--------------------------------------------------------------------- */
+const CONDITIONS = [
+  {id:'swimming', name:'Will there be swimming?'},
+  {id:'dance', name:'Will there be a dance event?'},
+  {id:'international', name:'Is it international travel?'},
+  {id:'cold', name:'Will it be cold?'},
+  {id:'work', name:'Is it a work trip?'},
+  {id:'formal', name:'Is there a formal occasion?'},
+  {id:'roadtrip', name:'Is it a road trip?'}
+];
+function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? c.name : id; }
 
 /* ---------------------------------------------------------------------
    LOCAL (per-device, unsynced) UI STATE
 --------------------------------------------------------------------- */
-let UI = { view:'trips', currentTripId:null, packFilter:'all', packSort:'category', manageTab:null, addingTrip:false };
+let UI = { view:'trips', currentTripId:null, packFilter:'all', packSort:'location', manageTab:null, addingTrip:false, addingTripPerson:false };
 (function restoreUI(){
   try {
     const raw = sessionStorage.getItem('packingpal-ui');
@@ -383,21 +431,55 @@ function fmtDate(iso){
    writes only the relevant Firestore document/field so unrelated data
    (other trips, other people's ticks) is never touched by this write.
 --------------------------------------------------------------------- */
-function createTrip(name){
+function createTrip(name, conditions){
+  const conds = conditions || [];
+  // An item with no tag always comes along; a tagged item only comes
+  // along if the matching survey question was answered yes.
+  const keep = (item) => !item.tag || conds.includes(item.tag);
+  const categories = JSON.parse(JSON.stringify(STATE.master.categories))
+    .map(cat => ({ ...cat, items: cat.items.filter(keep) }));
+  const beforeWeLeave = JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)).filter(keep);
   const trip = {
     id: uid('trip'),
     name: name.trim() || 'New trip',
     createdAt: new Date().toISOString(),
-    categories: JSON.parse(JSON.stringify(STATE.master.categories)),
-    beforeWeLeave: JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)),
-    packed: {}
+    categories, beforeWeLeave,
+    packed: {},
+    extraPeople: []
   };
   STATE.trips.unshift(trip);
   UI.currentTripId = trip.id;
   UI.view = 'pack';
   UI.packFilter = 'all';
+  UI.packSort = 'location';
   try { localStorage.setItem('packingpal-current-trip', trip.id); } catch(e){}
   setDoc(doc(db, 'trips', trip.id), trip).catch(handleSaveError);
+}
+// Adds someone to just this trip's roster (e.g. a grandparent joining one
+// holiday) — Pat, Wendy and Maddy stay the permanent baseline everywhere
+// else; this only ever affects the one trip.
+function addTripPerson(tripId, name){
+  const trip = findTrip(tripId);
+  if (!trip || !name.trim()) return;
+  if (!trip.extraPeople) trip.extraPeople = [];
+  trip.extraPeople.push({ id: uid('person'), name: name.trim() });
+  updateDoc(doc(db, 'trips', tripId), { extraPeople: trip.extraPeople }).catch(handleSaveError);
+}
+function removeTripPerson(tripId, personId){
+  const trip = findTrip(tripId);
+  if (!trip) return;
+  trip.extraPeople = (trip.extraPeople || []).filter(p => p.id !== personId);
+  // Drop any assignments to them too, so they don't linger as an
+  // invisible assignee no one can see or clear.
+  trip.categories.forEach(cat => cat.items.forEach(item => {
+    const idx = item.who.indexOf(personId);
+    if (idx !== -1) item.who.splice(idx, 1);
+  }));
+  trip.beforeWeLeave.forEach(item => {
+    const idx = item.who.indexOf(personId);
+    if (idx !== -1) item.who.splice(idx, 1);
+  });
+  updateDoc(doc(db, 'trips', tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
 function deleteTrip(id){
   STATE.trips = STATE.trips.filter(t => t.id !== id);
@@ -453,12 +535,12 @@ function toggleTripItemAssignee(tripId, itemId, personId){
   if (idx === -1) item.who.push(personId); else item.who.splice(idx, 1);
   updateDoc(doc(db, 'trips', tripId), { categories: trip.categories }).catch(handleSaveError);
 }
-function addItem(catId, name, who, location){
+function addItem(catId, name, who, location, tag){
   const cat = findCategory(catId);
   if (!cat || !name.trim()) return;
   cat.items.push({
     id: uid('item'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy'],
-    location: location || 'bedroom'
+    location: location || 'bedroom', tag: tag || ''
   });
   scheduleMasterSave();
 }
@@ -467,6 +549,24 @@ function setItemLocation(catId, itemId, location){
   const item = cat && cat.items.find(i => i.id === itemId);
   if (!item) return;
   item.location = location;
+  scheduleMasterSave();
+}
+function setItemTag(catId, itemId, tag){
+  const cat = findCategory(catId);
+  const item = cat && cat.items.find(i => i.id === itemId);
+  if (!item) return;
+  item.tag = tag || '';
+  scheduleMasterSave();
+}
+// Adds a new location option, available immediately in every location
+// dropdown. Seeds the list from the built-in defaults first if this
+// master list has never had a custom one added before.
+function addLocation(name){
+  if (!name.trim()) return;
+  if (!STATE.master.locations || !STATE.master.locations.length){
+    STATE.master.locations = DEFAULT_LOCATIONS.map(l => ({ ...l }));
+  }
+  STATE.master.locations.push({ id: uid('loc'), name: name.trim() });
   scheduleMasterSave();
 }
 function deleteItem(catId, itemId){
@@ -596,6 +696,13 @@ function renderTrips(){
     if (UI.addingTrip){
       html += '<form class="new-trip-form" data-action="create-trip">' +
         '<input type="text" name="name" placeholder="Trip name, e.g. NZ — Dec 2026" autofocus required>' +
+        '<div style="font-size:0.78rem;color:var(--ink-soft);">Quick questions — tick any that apply, this shapes what shows up:</div>' +
+        '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
+      CONDITIONS.forEach(c => {
+        html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;padding:0.2rem 0;cursor:pointer;">' +
+          '<input type="checkbox" name="condition" value="' + c.id + '"> ' + escapeHtml(c.name) + '</label>';
+      });
+      html += '</div>' +
         '<div style="display:flex; gap:0.5rem;"><button type="submit" class="btn">Create trip</button>' +
         '<button type="button" class="btn ghost" data-action="hide-new-trip">Cancel</button></div></form>';
     } else {
@@ -625,9 +732,23 @@ function renderPack(){
   html += '</div>';
 
   html += '<div class="filter-row">';
+  (trip.extraPeople || []).forEach(p => {
+    const ca = personChipAttrs(trip, p.id, true);
+    html += '<span class="chip-filter" style="' + ca.style + 'display:inline-flex;align-items:center;gap:0.35rem;padding-right:0.5rem;">' + escapeHtml(p.name) +
+      '<button data-action="remove-trip-person" data-trip="' + trip.id + '" data-person="' + p.id + '" title="Remove ' + escapeHtml(p.name) + ' from this trip" style="background:none;border:none;color:inherit;cursor:pointer;font-weight:800;padding:0;line-height:1;font-size:1rem;">×</button></span>';
+  });
+  if (UI.addingTripPerson){
+    html += '<form class="add-cat-form" data-action="add-trip-person" data-trip="' + trip.id + '"><input type="text" name="name" placeholder="Name" autofocus required></form>';
+  } else {
+    html += '<button class="chip-filter" data-action="show-add-trip-person" title="Add someone else to just this trip">+ Person</button>';
+  }
+  html += '</div>';
+
+  html += '<div class="filter-row">';
   html += '<button class="chip-filter' + (filter==='all'?' active':'') + '" data-action="set-filter" data-person="all">All</button>';
-  PEOPLE.forEach(p => {
-    html += '<button class="chip-filter p-' + p.id + (filter===p.id?' active':'') + '" data-action="set-filter" data-person="' + p.id + '">' + p.name + '</button>';
+  tripPeople(trip).forEach(p => {
+    const ca = personChipAttrs(trip, p.id, filter===p.id);
+    html += '<button class="chip-filter ' + ca.cls + (filter===p.id?' active':'') + '" style="' + ca.style + '" data-action="set-filter" data-person="' + p.id + '">' + escapeHtml(p.name) + '</button>';
   });
   html += '</div>';
 
@@ -640,17 +761,17 @@ function renderPack(){
   const overall = computeProgress(allTripItems(trip), trip.packed, filter);
   const pct = overall.total ? Math.round((overall.done/overall.total)*100) : 0;
   html += '<div class="overall-progress"><div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
-    '<div class="progress-label">' + overall.done + ' / ' + overall.total + ' packed' + (filter!=='all' ? ' · ' + personName(filter) : '') + '</div></div>';
+    '<div class="progress-label">' + overall.done + ' / ' + overall.total + ' packed' + (filter!=='all' ? ' · ' + escapeHtml(personNameInTrip(trip, filter)) : '') + '</div></div>';
 
   if (sort === 'location'){
     const groups = {};
-    LOCATIONS.forEach(l => { groups[l.id] = []; });
+    getLocations().forEach(l => { groups[l.id] = []; });
     groups['__none'] = [];
     allTripItems(trip).forEach(item => {
       const locId = (item.location && groups[item.location]) ? item.location : '__none';
       groups[locId].push(item);
     });
-    LOCATIONS.forEach(l => { html += renderPackGroup('loc-' + l.id, l.name, groups[l.id], trip, filter); });
+    getLocations().forEach(l => { html += renderPackGroup('loc-' + l.id, l.name, groups[l.id], trip, filter); });
     if (groups['__none'].length) html += renderPackGroup('loc-__none', 'Unsorted', groups['__none'], trip, filter);
   } else {
     trip.categories.forEach(cat => {
@@ -674,8 +795,9 @@ function renderPack(){
     html += '<div style="padding:0 0.9rem 0.9rem;"><form class="add-row-form" data-action="add-trip-before" data-trip="' + trip.id + '">' +
       '<input type="text" name="name" placeholder="Add a reminder for this trip…" required>' +
       '<span class="who-toggle">';
-    PEOPLE.forEach(p => {
-      html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
+    tripPeople(trip).forEach(p => {
+      const ca = personChipAttrs(trip, p.id, true);
+      html += '<label class="pchip ' + ca.cls + ' on" style="' + ca.style + 'cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
     });
     html += '</span><button type="submit" class="btn">Add</button></form></div>';
   }
@@ -736,33 +858,45 @@ function checkSvg(){
   return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8.3l3.2 3.2L13 4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function renderPackRow(trip, item, filter, isBwl){
+  const editing = !isBwl && editingAssignees.has(item.id);
   if (filter === 'all'){
     const allDone = isItemPackDone(trip, item, 'all');
-    const editing = !isBwl && editingAssignees.has(item.id);
     let rightSide;
     if (editing){
       let chips = '';
-      PEOPLE.forEach(p => {
+      tripPeople(trip).forEach(p => {
         const on = item.who.includes(p.id);
-        chips += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-trip-item-assignee" data-trip="' + trip.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (packing this — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+        const ca = personChipAttrs(trip, p.id, on);
+        chips += '<button class="pchip ' + ca.cls + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-trip-item-assignee" data-trip="' + trip.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + escapeHtml(p.name) + (on ? ' (packing this — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
       });
       rightSide = chips + editAssigneesButton(item.id, true);
     } else {
       let chips = '';
       item.who.forEach(p => {
         const on = !!(trip.packed[item.id] && trip.packed[item.id][p]);
-        chips += '<button class="pchip p-' + p + (on?' on':'') + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + personName(p) + '">' + (on ? '✓' : p.charAt(0).toUpperCase()) + '</button>';
+        const ca = personChipAttrs(trip, p, on);
+        chips += '<button class="pchip ' + ca.cls + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + escapeHtml(personNameInTrip(trip, p)) + '">' + (on ? '✓' : personNameInTrip(trip, p).charAt(0).toUpperCase()) + '</button>';
       });
       rightSide = chips + (isBwl ? '' : moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false));
     }
     return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + rightSide + '</span></li>';
+  }
+  if (editing){
+    let chips = '';
+    tripPeople(trip).forEach(p => {
+      const on = item.who.includes(p.id);
+      const ca = personChipAttrs(trip, p.id, on);
+      chips += '<button class="pchip ' + ca.cls + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-trip-item-assignee" data-trip="' + trip.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + escapeHtml(p.name) + (on ? ' (packing this — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+    });
+    return '<li style="display:flex;align-items:center;border-top:1px solid var(--line);padding:0.65rem 0.9rem;gap:0.4rem;">' +
+      '<span class="item-name" style="flex:1;">' + escapeHtml(item.name) + '</span>' + chips + editAssigneesButton(item.id, true) + '</li>';
   }
   const on = !!(trip.packed[item.id] && trip.packed[item.id][filter]);
   return '<li style="display:flex;align-items:center;border-top:1px solid var(--line);">' +
     '<button class="solo-row' + (on?' done':'') + '" style="width:auto;flex:1;border-top:none;" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
     '<span class="solo-box">' + (on ? '<span class="check-mark">✓</span>' : '') + '</span>' +
     '<span class="item-name">' + escapeHtml(item.name) + '</span></button>' +
-    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;">' + moveTripBwlButton(trip, item.id) + '</span>') +
+    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;display:flex;gap:0.3rem;">' + moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false) + '</span>') +
     '</li>';
 }
 
@@ -782,6 +916,7 @@ function renderManage(){
   html += '<button class="mtab bwl-tab' + (UI.manageTab==='__bwl'?' active':'') + '" data-action="manage-tab" data-cat="__bwl">Before we leave</button>';
   html += '<form class="add-cat-form" data-action="add-category"><input type="text" name="name" placeholder="+ New category"></form>';
   html += '</div>';
+  html += '<form class="add-cat-form" data-action="add-location" style="margin:-0.5rem 0 0.9rem;"><input type="text" name="name" placeholder="+ New location"></form>';
 
   if (UI.manageTab === '__bwl'){
     html += renderManageBwl();
@@ -821,6 +956,7 @@ function renderManageCategory(cat){
     html += moveToBwlButton(cat.id, item.id);
     html += deleteButton('delete-item', cat.id + '::' + item.id, 'Delete item');
     html += '<label class="location-row">Kept in: ' + locationSelectHtml(item.location, cat.id, item.id) + '</label>';
+    html += '<label class="location-row">Only if: ' + tagSelectHtml(item.tag, cat.id, item.id) + '</label>';
     html += '</div>';
   });
   html += '<form class="add-row-form" data-action="add-item" data-cat="' + cat.id + '">' +
@@ -830,14 +966,25 @@ function renderManageCategory(cat){
     html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
   });
   html += '</span><select class="location-select" name="location">';
-  LOCATIONS.forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
+  getLocations().forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
+  html += '</select><select class="location-select" name="tag"><option value="">Always include</option>';
+  CONDITIONS.forEach(c => { html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
   html += '</select><button type="submit" class="btn">Add item</button></form>';
   return html;
 }
 function locationSelectHtml(current, catId, itemId){
   let html = '<select class="location-select" data-field="item-location" data-cat="' + catId + '" data-item="' + itemId + '">';
-  LOCATIONS.forEach(l => {
+  getLocations().forEach(l => {
     html += '<option value="' + l.id + '"' + (current===l.id?' selected':'') + '>' + escapeHtml(l.name) + '</option>';
+  });
+  html += '</select>';
+  return html;
+}
+function tagSelectHtml(current, catId, itemId){
+  let html = '<select class="location-select" data-field="item-tag" data-cat="' + catId + '" data-item="' + itemId + '">' +
+    '<option value=""' + (!current?' selected':'') + '>Always include</option>';
+  CONDITIONS.forEach(c => {
+    html += '<option value="' + c.id + '"' + (current===c.id?' selected':'') + '>' + escapeHtml(c.name) + '</option>';
   });
   html += '</select>';
   return html;
@@ -899,9 +1046,14 @@ document.addEventListener('click', function(e){
     case 'hide-new-trip': UI.addingTrip = false; render(); break;
     case 'open-trip':
       if (UI.view === 'manage') flushMasterSaveNow();
-      UI.currentTripId = el.dataset.trip; UI.view = 'pack'; UI.packFilter = 'all';
+      UI.currentTripId = el.dataset.trip; UI.view = 'pack'; UI.packFilter = 'all'; UI.packSort = 'location'; UI.addingTripPerson = false;
       try { localStorage.setItem('packingpal-current-trip', el.dataset.trip); } catch(err){}
       saveUISnapshot();
+      render();
+      break;
+    case 'show-add-trip-person': UI.addingTripPerson = true; render(); break;
+    case 'remove-trip-person':
+      removeTripPerson(el.dataset.trip, el.dataset.person);
       render();
       break;
     case 'set-filter': UI.packFilter = el.dataset.person; saveUISnapshot(); render(); break;
@@ -950,12 +1102,13 @@ document.addEventListener('submit', function(e){
   const action = form.dataset.action;
   const fd = new FormData(form);
   if (action === 'create-trip'){
-    createTrip(fd.get('name') || 'New trip');
+    const conditions = fd.getAll('condition');
+    createTrip(fd.get('name') || 'New trip', conditions);
     UI.addingTrip = false;
     render();
   } else if (action === 'add-item'){
     const who = fd.getAll('who');
-    addItem(form.dataset.cat, fd.get('name') || '', who, fd.get('location'));
+    addItem(form.dataset.cat, fd.get('name') || '', who, fd.get('location'), fd.get('tag'));
     render();
   } else if (action === 'add-before'){
     const who = fd.getAll('who');
@@ -964,10 +1117,17 @@ document.addEventListener('submit', function(e){
   } else if (action === 'add-category'){
     addCategory(fd.get('name') || '');
     render();
+  } else if (action === 'add-location'){
+    addLocation(fd.get('name') || '');
+    render();
   } else if (action === 'add-trip-before'){
     const who = fd.getAll('who');
     addTripBwl(form.dataset.trip, fd.get('name') || '', who);
     form.reset();
+    render();
+  } else if (action === 'add-trip-person'){
+    addTripPerson(form.dataset.trip, fd.get('name') || '');
+    UI.addingTripPerson = false;
     render();
   }
 });
@@ -1006,6 +1166,10 @@ document.addEventListener('change', function(e){
   }
   if (cb.matches('select[data-field="item-location"]')){
     setItemLocation(cb.dataset.cat, cb.dataset.item, cb.value);
+    return;
+  }
+  if (cb.matches('select[data-field="item-tag"]')){
+    setItemTag(cb.dataset.cat, cb.dataset.item, cb.value);
   }
 });
 
