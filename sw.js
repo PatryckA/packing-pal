@@ -1,7 +1,7 @@
 // Minimal offline cache for the app shell only. Firestore and Google
 // Fonts requests are left alone (different origin) so live sync and
 // fonts always go straight to the network.
-const CACHE = 'packing-pal-v6';
+const CACHE = 'packing-pal-v7';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
