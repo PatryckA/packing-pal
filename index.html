@@ -419,6 +419,22 @@ function addTripBwl(tripId, name, who){
   trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
   updateDoc(doc(db, 'trips', tripId), { beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
+// Moves an item you're not ready to pack yet out of its category and
+// into this trip's own Before We Leave list — just for this trip, not
+// the master list. Keeps its name, who it's assigned to, and its packed
+// state (packed is keyed by item id regardless of which list it's in).
+function moveTripItemToBwl(tripId, itemId){
+  const trip = findTrip(tripId);
+  if (!trip) return;
+  let found = null;
+  trip.categories.forEach(cat => {
+    const idx = cat.items.findIndex(i => i.id === itemId);
+    if (idx !== -1){ found = cat.items[idx]; cat.items.splice(idx, 1); }
+  });
+  if (!found) return;
+  trip.beforeWeLeave.push({ id: found.id, name: found.name, who: found.who });
+  updateDoc(doc(db, 'trips', tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+}
 function addItem(catId, name, who, location){
   const cat = findCategory(catId);
   if (!cat || !name.trim()) return;
@@ -633,7 +649,7 @@ function renderPack(){
     '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
     chevSvg(bwlCollapsed) + '</span></div>';
   html += '<ul class="item-list' + (bwlCollapsed?' collapsed':'') + '">';
-  bwlItems.forEach(item => { html += renderPackRow(trip, item, filter); });
+  bwlItems.forEach(item => { html += renderPackRow(trip, item, filter, true); });
   if (bwlItems.length === 0) html += '<li class="manage-empty" style="padding:0.6rem 0.9rem;">Nothing here yet.</li>';
   html += '</ul>';
   if (!bwlCollapsed){
@@ -685,7 +701,10 @@ function sortPackItems(items, trip, filter){
     .sort((a, b) => (a.done - b.done) || (a.idx - b.idx))
     .map(x => x.item);
 }
-function renderPackRow(trip, item, filter){
+function moveTripBwlButton(trip, itemId){
+  return '<button class="iconbtn" data-action="move-trip-item-to-bwl" data-trip="' + trip.id + '" data-item="' + itemId + '" title="Not ready to pack — move to before we leave">' + moveToBwlSvg() + '</button>';
+}
+function renderPackRow(trip, item, filter, isBwl){
   if (filter === 'all'){
     let chips = '';
     item.who.forEach(p => {
@@ -693,12 +712,15 @@ function renderPackRow(trip, item, filter){
       chips += '<button class="pchip p-' + p + (on?' on':'') + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + personName(p) + '">' + (on ? '✓' : p.charAt(0).toUpperCase()) + '</button>';
     });
     const allDone = isItemPackDone(trip, item, 'all');
-    return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + chips + '</span></li>';
+    return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + chips + (isBwl ? '' : moveTripBwlButton(trip, item.id)) + '</span></li>';
   }
   const on = !!(trip.packed[item.id] && trip.packed[item.id][filter]);
-  return '<li><button class="solo-row' + (on?' done':'') + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
+  return '<li style="display:flex;align-items:center;border-top:1px solid var(--line);">' +
+    '<button class="solo-row' + (on?' done':'') + '" style="width:auto;flex:1;border-top:none;" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
     '<span class="solo-box">' + (on ? '<span class="check-mark">✓</span>' : '') + '</span>' +
-    '<span class="item-name">' + escapeHtml(item.name) + '</span></button></li>';
+    '<span class="item-name">' + escapeHtml(item.name) + '</span></button>' +
+    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;">' + moveTripBwlButton(trip, item.id) + '</span>') +
+    '</li>';
 }
 
 function renderManage(){
@@ -846,6 +868,10 @@ document.addEventListener('click', function(e){
       break;
     case 'toggle-chip':
       togglePacked(UI.currentTripId, el.dataset.item, el.dataset.person);
+      render();
+      break;
+    case 'move-trip-item-to-bwl':
+      moveTripItemToBwl(el.dataset.trip, el.dataset.item);
       render();
       break;
     case 'manage-tab': UI.manageTab = el.dataset.cat; saveUISnapshot(); render(); break;
