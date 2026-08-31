@@ -848,20 +848,35 @@ function renderPackGroup(groupId, groupName, items, trip, filter){
 function chevSvg(collapsed){
   return '<svg class="chev' + (collapsed?' collapsed':'') + '" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
-/* An item counts as "done" for sorting purposes on the person filter as
-   soon as that person ticks it; on "All" it only counts once every person
-   it's assigned to has ticked their own part, so it doesn't disappear from
-   someone else's view before their share is packed. */
+/* Whether an item is FULLY packed — every person it's assigned to has
+   ticked their own part (on a person filter, just that person). This
+   drives the strikethrough "done" styling, which is deliberately an
+   all-or-nothing state: a shared item still needs attention from whoever
+   hasn't packed their share yet. */
 function isItemPackDone(trip, item, filter){
   if (filter === 'all'){
     return item.who.length > 0 && item.who.every(p => trip.packed[item.id] && trip.packed[item.id][p]);
   }
   return !!(trip.packed[item.id] && trip.packed[item.id][filter]);
 }
+/* Sort score, separate from isItemPackDone above: on "All", a shared
+   item's position reflects how much of it is packed (0 = nobody, 1 =
+   everybody), not just all-or-nothing. That way an item you've personally
+   packed sinks toward the bottom of your own view right away, instead of
+   sitting at the top until every other assignee catches up too — each
+   person's progress moves the shared list independently of anyone else's.
+   On a person filter there's only one assignee to consider, so it's the
+   same binary check as isItemPackDone. */
+function packProgressScore(trip, item, filter){
+  if (filter !== 'all') return isItemPackDone(trip, item, filter) ? 1 : 0;
+  if (!item.who.length) return 0;
+  const done = item.who.filter(p => trip.packed[item.id] && trip.packed[item.id][p]).length;
+  return done / item.who.length;
+}
 function sortPackItems(items, trip, filter){
   return items
-    .map((item, idx) => ({item, idx, done: isItemPackDone(trip, item, filter) ? 1 : 0}))
-    .sort((a, b) => (a.done - b.done) || (a.idx - b.idx))
+    .map((item, idx) => ({item, idx, score: packProgressScore(trip, item, filter)}))
+    .sort((a, b) => (a.score - b.score) || (a.idx - b.idx))
     .map(x => x.item);
 }
 function moveTripBwlButton(trip, itemId){
