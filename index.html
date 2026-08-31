@@ -243,10 +243,17 @@ main{flex:1; padding:1rem 1rem 4rem;}
 }
 .manage-row.has-location{flex-wrap:wrap;}
 .location-row{flex:1 0 100%; display:flex; align-items:center; gap:0.4rem; font-size:0.78rem; color:var(--ink-soft); margin-top:0.35rem;}
+.location-row.tag-row{align-items:flex-start;}
 .location-select{
   flex:1; max-width:200px; background:var(--surface); border:1px solid var(--line); border-radius:7px;
   padding:0.3rem 0.5rem; color:var(--ink); font-size:0.85rem;
 }
+.tag-chip-row{display:flex; flex-wrap:wrap; gap:0.3rem;}
+.tag-chip{
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-soft); border-radius:20px;
+  padding:0.22rem 0.65rem; font-size:0.72rem; font-weight:700; cursor:pointer; flex:none;
+}
+.tag-chip.on{background:var(--accent-bg); border-color:var(--accent); color:var(--accent-strong);}
 .manage-empty{color:var(--ink-soft); font-size:0.85rem; padding:0.8rem 0;}
 .people-legend{display:flex; gap:1rem; flex-wrap:wrap; font-size:0.72rem; color:var(--ink-soft); margin-bottom:1rem;}
 .people-legend span{display:inline-flex; align-items:center; gap:0.3rem;}
@@ -343,19 +350,28 @@ function locationName(id){ const l = getLocations().find(l=>l.id===id); return l
 
 /* ---------------------------------------------------------------------
    CONDITIONS — the quick yes/no questions asked when creating a trip.
-   An item tagged with one of these only appears on a trip if that
-   question was answered yes; an untagged item always appears.
+   An item can be tagged with any number of these — it appears on a trip
+   if AT LEAST ONE of its tags was answered yes (e.g. a suit tagged both
+   "work" and "formal" shows up for either kind of trip). An untagged
+   item always appears.
 --------------------------------------------------------------------- */
 const CONDITIONS = [
-  {id:'swimming', name:'Will there be swimming?'},
-  {id:'dance', name:'Will there be a dance event?'},
-  {id:'international', name:'Is it international travel?'},
-  {id:'cold', name:'Will it be cold?'},
-  {id:'work', name:'Is it a work trip?'},
-  {id:'formal', name:'Is there a formal occasion?'},
-  {id:'roadtrip', name:'Is it a road trip?'}
+  {id:'swimming', name:'Will there be swimming?', short:'Swimming'},
+  {id:'dance', name:'Will there be a dance event?', short:'Dance event'},
+  {id:'international', name:'Is it international travel?', short:'International'},
+  {id:'cold', name:'Will it be cold?', short:'Cold'},
+  {id:'work', name:'Is it a work trip?', short:'Work trip'},
+  {id:'formal', name:'Is there a formal occasion?', short:'Formal'},
+  {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'}
 ];
 function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? c.name : id; }
+// Items may still carry the old single `tag` string (from before tags
+// became multi-select) — this normalizes either shape to an array so
+// every reader can just treat item.tags as a list.
+function itemTags(item){
+  if (Array.isArray(item.tags)) return item.tags;
+  return item.tag ? [item.tag] : [];
+}
 
 /* ---------------------------------------------------------------------
    LOCAL (per-device, unsynced) UI STATE
@@ -433,9 +449,12 @@ function fmtDate(iso){
 --------------------------------------------------------------------- */
 function createTrip(name, conditions){
   const conds = conditions || [];
-  // An item with no tag always comes along; a tagged item only comes
-  // along if the matching survey question was answered yes.
-  const keep = (item) => !item.tag || conds.includes(item.tag);
+  // An item with no tags always comes along; a tagged item comes along
+  // if ANY of its tags was answered yes on the survey.
+  const keep = (item) => {
+    const tags = itemTags(item);
+    return tags.length === 0 || tags.some(t => conds.includes(t));
+  };
   const categories = JSON.parse(JSON.stringify(STATE.master.categories))
     .map(cat => ({ ...cat, items: cat.items.filter(keep) }));
   const beforeWeLeave = JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)).filter(keep);
@@ -535,12 +554,12 @@ function toggleTripItemAssignee(tripId, itemId, personId){
   if (idx === -1) item.who.push(personId); else item.who.splice(idx, 1);
   updateDoc(doc(db, 'trips', tripId), { categories: trip.categories }).catch(handleSaveError);
 }
-function addItem(catId, name, who, location, tag){
+function addItem(catId, name, who, location, tags){
   const cat = findCategory(catId);
   if (!cat || !name.trim()) return;
   cat.items.push({
     id: uid('item'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy'],
-    location: location || 'bedroom', tag: tag || ''
+    location: location || 'bedroom', tags: tags || []
   });
   scheduleMasterSave();
 }
@@ -551,11 +570,15 @@ function setItemLocation(catId, itemId, location){
   item.location = location;
   scheduleMasterSave();
 }
-function setItemTag(catId, itemId, tag){
+function toggleItemTag(catId, itemId, tagId){
   const cat = findCategory(catId);
   const item = cat && cat.items.find(i => i.id === itemId);
   if (!item) return;
-  item.tag = tag || '';
+  const tags = itemTags(item);
+  const idx = tags.indexOf(tagId);
+  if (idx === -1) tags.push(tagId); else tags.splice(idx, 1);
+  item.tags = tags;
+  delete item.tag;
   scheduleMasterSave();
 }
 // Adds a new location option, available immediately in every location
@@ -956,7 +979,7 @@ function renderManageCategory(cat){
     html += moveToBwlButton(cat.id, item.id);
     html += deleteButton('delete-item', cat.id + '::' + item.id, 'Delete item');
     html += '<label class="location-row">Kept in: ' + locationSelectHtml(item.location, cat.id, item.id) + '</label>';
-    html += '<label class="location-row">Only if: ' + tagSelectHtml(item.tag, cat.id, item.id) + '</label>';
+    html += '<div class="location-row tag-row">Only if:<span class="tag-chip-row">' + tagChipsHtml(itemTags(item), cat.id, item.id) + '</span></div>';
     html += '</div>';
   });
   html += '<form class="add-row-form" data-action="add-item" data-cat="' + cat.id + '">' +
@@ -967,9 +990,11 @@ function renderManageCategory(cat){
   });
   html += '</span><select class="location-select" name="location">';
   getLocations().forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
-  html += '</select><select class="location-select" name="tag"><option value="">Always include</option>';
-  CONDITIONS.forEach(c => { html += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; });
-  html += '</select><button type="submit" class="btn">Add item</button></form>';
+  html += '</select><span class="tag-chip-row" title="Only if… leave all unticked to always include">';
+  CONDITIONS.forEach(c => {
+    html += '<label class="tag-chip" style="cursor:pointer;"><input type="checkbox" name="tags" value="' + c.id + '" style="display:none;" title="' + escapeHtml(c.name) + '"><span>' + escapeHtml(c.short) + '</span></label>';
+  });
+  html += '</span><button type="submit" class="btn">Add item</button></form>';
   return html;
 }
 function locationSelectHtml(current, catId, itemId){
@@ -980,13 +1005,15 @@ function locationSelectHtml(current, catId, itemId){
   html += '</select>';
   return html;
 }
-function tagSelectHtml(current, catId, itemId){
-  let html = '<select class="location-select" data-field="item-tag" data-cat="' + catId + '" data-item="' + itemId + '">' +
-    '<option value=""' + (!current?' selected':'') + '>Always include</option>';
+// Toggle chips for an item's "only if" tags — any number can be on at
+// once (e.g. a suit tagged both Work trip and Formal shows up for
+// either), and none on means the item always comes along.
+function tagChipsHtml(currentTags, catId, itemId){
+  let html = '';
   CONDITIONS.forEach(c => {
-    html += '<option value="' + c.id + '"' + (current===c.id?' selected':'') + '>' + escapeHtml(c.name) + '</option>';
+    const on = currentTags.includes(c.id);
+    html += '<button type="button" class="tag-chip' + (on?' on':'') + '" data-action="toggle-item-tag" data-cat="' + catId + '" data-item="' + itemId + '" data-tag="' + c.id + '" title="' + escapeHtml(c.name) + '">' + escapeHtml(c.short) + '</button>';
   });
-  html += '</select>';
   return html;
 }
 function renderManageBwl(){
@@ -1081,6 +1108,10 @@ document.addEventListener('click', function(e){
       toggleItemAssignee(el.dataset.cat, el.dataset.item, el.dataset.person);
       render();
       break;
+    case 'toggle-item-tag':
+      toggleItemTag(el.dataset.cat, el.dataset.item, el.dataset.tag);
+      render();
+      break;
     case 'toggle-before-assignee':
       toggleBwlAssignee(el.dataset.item, el.dataset.person);
       render();
@@ -1108,7 +1139,8 @@ document.addEventListener('submit', function(e){
     render();
   } else if (action === 'add-item'){
     const who = fd.getAll('who');
-    addItem(form.dataset.cat, fd.get('name') || '', who, fd.get('location'), fd.get('tag'));
+    const tags = fd.getAll('tags');
+    addItem(form.dataset.cat, fd.get('name') || '', who, fd.get('location'), tags);
     render();
   } else if (action === 'add-before'){
     const who = fd.getAll('who');
@@ -1164,12 +1196,13 @@ document.addEventListener('change', function(e){
     if (letter) letter.style.visibility = cb.checked ? 'visible' : 'hidden';
     return;
   }
-  if (cb.matches('select[data-field="item-location"]')){
-    setItemLocation(cb.dataset.cat, cb.dataset.item, cb.value);
+  if (cb.matches('input[type="checkbox"][name="tags"]')){
+    const label = cb.closest('label.tag-chip');
+    if (label) label.classList.toggle('on', cb.checked);
     return;
   }
-  if (cb.matches('select[data-field="item-tag"]')){
-    setItemTag(cb.dataset.cat, cb.dataset.item, cb.value);
+  if (cb.matches('select[data-field="item-location"]')){
+    setItemLocation(cb.dataset.cat, cb.dataset.item, cb.value);
   }
 });
 
