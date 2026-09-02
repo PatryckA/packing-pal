@@ -304,7 +304,16 @@ function personName(id){ const p = PEOPLE.find(p=>p.id===id); return p ? p.name 
 // generated at add-time — this small palette is assigned by position and
 // applied as inline styles instead.
 const EXTRA_PERSON_COLORS = ['#6B5B95', '#C97C5D', '#4C8577', '#A85751', '#3E6B8A'];
-function tripPeople(trip){ return PEOPLE.concat((trip && trip.extraPeople) || []); }
+// The base people (Pat/Wendy/Maddy) actually on this trip come from
+// trip.people, chosen in the "Who's travelling?" survey. Trips created
+// before that field existed have no trip.people, so fall back to all
+// three for them.
+function tripPeople(trip){
+  const base = (trip && Array.isArray(trip.people))
+    ? PEOPLE.filter(p => trip.people.includes(p.id))
+    : PEOPLE;
+  return base.concat((trip && trip.extraPeople) || []);
+}
 function personNameInTrip(trip, id){
   const base = PEOPLE.find(p => p.id === id);
   if (base) return base.name;
@@ -447,24 +456,44 @@ function fmtDate(iso){
    writes only the relevant Firestore document/field so unrelated data
    (other trips, other people's ticks) is never touched by this write.
 --------------------------------------------------------------------- */
-function createTrip(name, conditions){
+function createTrip(name, conditions, people, guestNames){
   const conds = conditions || [];
+  // Who's travelling — the base people ticked in the survey, kept in
+  // canonical order, plus any typed-in guests. If nobody at all was
+  // picked, assume the whole household rather than make an empty trip.
+  let peopleIds = PEOPLE.map(p => p.id).filter(id => (people || []).includes(id));
+  const extraPeople = (guestNames || [])
+    .map(n => String(n || '').trim())
+    .filter(Boolean)
+    .map(n => ({ id: uid('person'), name: n }));
+  if (peopleIds.length === 0 && extraPeople.length === 0){
+    peopleIds = PEOPLE.map(p => p.id);
+  }
+  const travelling = peopleIds.concat(extraPeople.map(p => p.id));
   // An item with no tags always comes along; a tagged item comes along
   // if ANY of its tags was answered yes on the survey.
   const keep = (item) => {
     const tags = itemTags(item);
     return tags.length === 0 || tags.some(t => conds.includes(t));
   };
+  // Strip any assignment to someone not on this trip, so packed counts
+  // and chips only ever show people who are actually coming. They can
+  // still be added back later with "+ Person".
+  const trimWho = (item) => {
+    item.who = (item.who || []).filter(p => travelling.includes(p));
+    return item;
+  };
   const categories = JSON.parse(JSON.stringify(STATE.master.categories))
-    .map(cat => ({ ...cat, items: cat.items.filter(keep) }));
-  const beforeWeLeave = JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)).filter(keep);
+    .map(cat => ({ ...cat, items: cat.items.filter(keep).map(trimWho) }));
+  const beforeWeLeave = JSON.parse(JSON.stringify(STATE.master.beforeWeLeave)).filter(keep).map(trimWho);
   const trip = {
     id: uid('trip'),
     name: name.trim() || 'New trip',
     createdAt: new Date().toISOString(),
+    people: peopleIds,
     categories, beforeWeLeave,
     packed: {},
-    extraPeople: []
+    extraPeople: extraPeople
   };
   STATE.trips.unshift(trip);
   UI.currentTripId = trip.id;
@@ -719,6 +748,14 @@ function renderTrips(){
     if (UI.addingTrip){
       html += '<form class="new-trip-form" data-action="create-trip">' +
         '<input type="text" name="name" placeholder="Trip name, e.g. NZ — Dec 2026" autofocus required>' +
+        '<div style="font-size:0.78rem;color:var(--ink-soft);">Who\'s travelling? Untick anyone staying home.</div>' +
+        '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
+      PEOPLE.forEach(p => {
+        html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;padding:0.2rem 0;cursor:pointer;">' +
+          '<input type="checkbox" name="person" value="' + p.id + '" checked> ' + escapeHtml(p.name) + '</label>';
+      });
+      html += '</div>' +
+        '<input type="text" name="guest" placeholder="Someone else coming? Add a name">' +
         '<div style="font-size:0.78rem;color:var(--ink-soft);">Quick questions — tick any that apply, this shapes what shows up:</div>' +
         '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
       CONDITIONS.forEach(c => {
@@ -777,8 +814,8 @@ function renderPack(){
 
   const sort = UI.packSort === 'location' ? 'location' : 'category';
   html += '<div class="filter-row">' +
-    '<button class="chip-filter' + (sort==='category'?' active':'') + '" data-action="set-packsort" data-sort="category">By category</button>' +
     '<button class="chip-filter' + (sort==='location'?' active':'') + '" data-action="set-packsort" data-sort="location">By location</button>' +
+    '<button class="chip-filter' + (sort==='category'?' active':'') + '" data-action="set-packsort" data-sort="category">By category</button>' +
     '</div>';
 
   const overall = computeProgress(allTripItems(trip), trip.packed, filter);
@@ -1149,7 +1186,9 @@ document.addEventListener('submit', function(e){
   const fd = new FormData(form);
   if (action === 'create-trip'){
     const conditions = fd.getAll('condition');
-    createTrip(fd.get('name') || 'New trip', conditions);
+    const people = fd.getAll('person');
+    const guests = fd.getAll('guest');
+    createTrip(fd.get('name') || 'New trip', conditions, people, guests);
     UI.addingTrip = false;
     render();
   } else if (action === 'add-item'){
