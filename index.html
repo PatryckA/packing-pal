@@ -597,38 +597,68 @@ async function resolveHousehold(){
 }
 async function createHousehold(name){
   if (!AUTH.user) return;
-  const householdRef = doc(collection(db, 'households'));
-  const batch = writeBatch(db);
-  batch.set(householdRef, {
-    name: name.trim() || 'Our household', ownerUid: AUTH.user.uid, createdAt: new Date().toISOString()
-  });
-  batch.set(doc(db, 'households', householdRef.id, 'members', AUTH.user.uid), {
-    name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
-  });
-  batch.set(doc(db, 'households', householdRef.id, 'state', 'master'), { categories: [], beforeWeLeave: [], people: [] });
-  batch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdRef.id });
-  await batch.commit();
-  HOUSEHOLD.id = householdRef.id;
-  HOUSEHOLD.name = name.trim() || 'Our household';
-  HOUSEHOLD.resolved = true;
-  UI.onboardMode = 'people';
-  startHouseholdListeners(householdRef.id);
+  UI.onboardInviteError = '';
+  UI.creatingHousehold = true;
+  render();
+  const householdName = name.trim() || 'Our household';
+  try {
+    const householdRef = doc(collection(db, 'households'));
+    // Two separate writes, not one batch: households/{id}/state/master's
+    // rule requires this account to already be a member, and Firestore
+    // evaluates each write in a batch against the database as it stood
+    // BEFORE the batch — it doesn't let one queued write's rules see
+    // another queued write in the same batch. Bundling the membership
+    // doc and the master doc into a single batch means the master
+    // write's isMember() check always sees "not a member yet" and gets
+    // rejected, silently failing the whole batch. Committing membership
+    // first, then writing the rest once it's actually in the database,
+    // avoids that.
+    const setupBatch = writeBatch(db);
+    setupBatch.set(householdRef, {
+      name: householdName, ownerUid: AUTH.user.uid, createdAt: new Date().toISOString()
+    });
+    setupBatch.set(doc(db, 'households', householdRef.id, 'members', AUTH.user.uid), {
+      name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
+    });
+    await setupBatch.commit();
+    const dataBatch = writeBatch(db);
+    dataBatch.set(doc(db, 'households', householdRef.id, 'state', 'master'), { categories: [], beforeWeLeave: [], people: [] });
+    dataBatch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdRef.id });
+    await dataBatch.commit();
+    HOUSEHOLD.id = householdRef.id;
+    HOUSEHOLD.name = householdName;
+    HOUSEHOLD.resolved = true;
+    startHouseholdListeners(householdRef.id);
+  } catch(err){
+    console.warn('Packing Pal: create household failed', err);
+    UI.onboardInviteError = 'Could not create your household — try again in a moment.';
+  }
+  UI.creatingHousehold = false;
   render();
 }
 async function joinHousehold(householdId){
   if (!AUTH.user) return;
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'households', householdId, 'members', AUTH.user.uid), {
-    name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
-  });
-  batch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdId });
-  await batch.commit();
-  const hhSnap = await getDoc(doc(db, 'households', householdId));
-  HOUSEHOLD.id = householdId;
-  HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
-  HOUSEHOLD.resolved = true;
-  pendingJoinId = null;
-  startHouseholdListeners(householdId);
+  UI.onboardInviteError = '';
+  UI.joiningHousehold = true;
+  render();
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'households', householdId, 'members', AUTH.user.uid), {
+      name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
+    });
+    batch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdId });
+    await batch.commit();
+    const hhSnap = await getDoc(doc(db, 'households', householdId));
+    HOUSEHOLD.id = householdId;
+    HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
+    HOUSEHOLD.resolved = true;
+    pendingJoinId = null;
+    startHouseholdListeners(householdId);
+  } catch(err){
+    console.warn('Packing Pal: join household failed', err);
+    UI.onboardInviteError = 'Could not join that household — try again in a moment.';
+  }
+  UI.joiningHousehold = false;
   render();
 }
 async function loadHouseholdMembers(){
@@ -1040,8 +1070,8 @@ function renderOnboardingCreate(){
     '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">This becomes your own private packing list — nobody sees it unless you invite them.</p>' +
     (UI.onboardInviteError ? '<p style="color:var(--critical);font-size:0.82rem;margin:0;">' + escapeHtml(UI.onboardInviteError) + '</p>' : '') +
     '<form data-action="create-household" style="display:flex;flex-direction:column;gap:0.6rem;">' +
-      '<input type="text" name="name" placeholder="Household name, e.g. The Smiths" autofocus required>' +
-      '<button type="submit" class="btn">Get started</button>' +
+      '<input type="text" name="name" placeholder="Household name, e.g. The Smiths" autofocus required' + (UI.creatingHousehold?' disabled':'') + '>' +
+      '<button type="submit" class="btn"' + (UI.creatingHousehold?' disabled':'') + '>' + (UI.creatingHousehold?'Creating…':'Get started') + '</button>' +
     '</form>' +
   '</div>';
 }
@@ -1050,8 +1080,9 @@ function renderOnboardingJoin(){
   return '<div class="onboard-card">' +
     '<h2>Join ' + escapeHtml(name) + '</h2>' +
     '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">You’ve been invited to share this household’s packing lists.</p>' +
-    '<button type="button" class="btn" data-action="join-household">Join household</button>' +
-    '<button type="button" class="btn ghost" data-action="decline-invite">Set up my own household instead</button>' +
+    (UI.onboardInviteError ? '<p style="color:var(--critical);font-size:0.82rem;margin:0;">' + escapeHtml(UI.onboardInviteError) + '</p>' : '') +
+    '<button type="button" class="btn" data-action="join-household"' + (UI.joiningHousehold?' disabled':'') + '>' + (UI.joiningHousehold?'Joining…':'Join household') + '</button>' +
+    '<button type="button" class="btn ghost" data-action="decline-invite"' + (UI.joiningHousehold?' disabled':'') + '>Set up my own household instead</button>' +
   '</div>';
 }
 function renderOnboardingPeople(){
