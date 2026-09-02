@@ -285,7 +285,8 @@ import {
   collection, onSnapshot, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
-  getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut
+  getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult,
+  GoogleAuthProvider, signOut as firebaseSignOut
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 /* ---------------------------------------------------------------------
@@ -488,9 +489,36 @@ let pendingJoinId = null;
   } catch(e){}
 })();
 
+// Failures here used to vanish silently (console.warn only) — someone
+// clicking "Continue with Google" with popups blocked, or before the
+// site is on Firebase's authorized-domains list, saw literally nothing
+// happen. Now: known popup problems retry as a full-page redirect, and
+// anything else shows an actual message on the sign-in screen.
+function authErrorMessage(err){
+  const code = err && err.code;
+  if (code === 'auth/unauthorized-domain') return "This site isn't yet authorized for sign-in — add it under Firebase Console → Authentication → Settings → Authorized domains.";
+  if (code === 'auth/popup-blocked') return 'Your browser blocked the sign-in popup. Allow popups for this site and try again.';
+  if (code === 'auth/network-request-failed') return 'Network error — check your connection and try again.';
+  if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') return '';
+  return 'Sign-in failed' + (code ? ' (' + code + ')' : '') + ' — try again in a moment.';
+}
 function signIn(){
+  UI.authError = '';
   signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
-    console.warn('Packing Pal: sign-in failed', err);
+    console.warn('Packing Pal: popup sign-in failed', err);
+    const code = err && err.code;
+    if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment'){
+      // Popup didn't work (common on mobile browsers, or with popups
+      // blocked outright) — fall back to a full-page redirect instead.
+      signInWithRedirect(auth, new GoogleAuthProvider()).catch(err2 => {
+        console.warn('Packing Pal: redirect sign-in failed', err2);
+        UI.authError = authErrorMessage(err2);
+        render();
+      });
+      return;
+    }
+    UI.authError = authErrorMessage(err);
+    render();
   });
 }
 function signOutUser(){
@@ -996,6 +1024,7 @@ function renderSignIn(){
     '<span class="brand-mark">Packing Pal</span>' +
     '<p>A shared packing list for your household — trips, people, locations, and gear, organized your way. Sign in to create your household or join one you’ve been invited to.</p>' +
     '<button class="gbtn" data-action="sign-in">' + googleGSvg() + ' Continue with Google</button>' +
+    (UI.authError ? '<p style="color:var(--critical);font-size:0.85rem;max-width:24rem;">' + escapeHtml(UI.authError) + '</p>' : '') +
   '</div>';
 }
 function googleGSvg(){
@@ -1671,6 +1700,14 @@ function boot(){
       UI.view = 'trips'; UI.currentTripId = null;
       render();
     }
+  });
+  // Only relevant right after a signInWithRedirect() round-trip — picks
+  // up an error from that flow (onAuthStateChanged alone never sees a
+  // redirect that failed, only ones that succeeded).
+  getRedirectResult(auth).catch(err => {
+    console.warn('Packing Pal: redirect sign-in failed', err);
+    UI.authError = authErrorMessage(err);
+    render();
   });
 
   window.addEventListener('online', () => { offlineMode = false; render(); });
