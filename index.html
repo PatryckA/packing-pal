@@ -409,6 +409,38 @@ const CONDITIONS = [
   {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'}
 ];
 function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? c.name : id; }
+
+/* ---------------------------------------------------------------------
+   STARTER TEMPLATE — a generic, nobody-in-particular packing list a
+   brand new household can optionally load instead of starting from a
+   totally blank Manage screen. No locations assigned (houses vary too
+   much to guess), and each item goes to every current household person
+   — addStarterTemplate() ADDS these on top of whatever's already there
+   rather than replacing it, so it's always safe to click.
+--------------------------------------------------------------------- */
+const STARTER_TEMPLATE = {
+  categories: [
+    { name: 'Clothes', items: ['T-shirts', 'Underwear', 'Socks', 'Pyjamas', 'Comfortable shoes'] },
+    { name: 'Toiletries', items: ['Toothbrush & toothpaste', 'Deodorant', 'Shampoo & conditioner', 'Medications'] },
+    { name: 'Documents & money', items: ['ID / passport', 'Tickets & confirmations', 'Wallet & cards'] },
+    { name: 'Electronics', items: ['Phone charger', 'Headphones', 'Camera'] }
+  ],
+  beforeWeLeave: ['Lock the doors', 'Turn off appliances', 'Take out the rubbish']
+};
+function addStarterTemplate(){
+  const who = getPeople().map(p => p.id);
+  STARTER_TEMPLATE.categories.forEach(cat => {
+    STATE.master.categories.push({
+      id: uid('cat'), name: cat.name,
+      items: cat.items.map(name => ({ id: uid('item'), name, who: who.slice(), location: '', tags: [] }))
+    });
+  });
+  STARTER_TEMPLATE.beforeWeLeave.forEach(name => {
+    STATE.master.beforeWeLeave.push({ id: uid('bwl'), name, who: who.slice() });
+  });
+  scheduleMasterSave();
+}
+
 // Items may still carry the old single `tag` string (from before tags
 // became multi-select) — this normalizes either shape to an array so
 // every reader can just treat item.tags as a list.
@@ -1092,10 +1124,17 @@ function renderOnboardingPeople(){
     '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">Add the people you’ll assign packing items to — you can rename or add more anytime from Manage list.</p>';
   html += renderPeopleList();
   html += '<button type="button" class="btn" data-action="finish-onboarding"' + (getPeople().length===0?' disabled':'') + '>Continue to Packing Pal</button>';
-  html += '<div style="border-top:1px dashed var(--line);padding-top:0.75rem;margin-top:0.4rem;">' +
-    '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Used the original shared Packing Pal before? You can bring that list over instead of starting from scratch.</p>' +
-    '<button type="button" class="btn ghost" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating ? 'Importing…' : 'Import that list') + '</button>' +
-  '</div></div>';
+  if (STATE.master.categories.length === 0){
+    html += '<div style="border-top:1px dashed var(--line);padding-top:0.75rem;margin-top:0.4rem;">' +
+      '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Starting from a blank list? Load a generic template (clothes, toiletries, documents…) to edit instead of typing everything from scratch.</p>' +
+      '<button type="button" class="btn ghost" data-action="add-starter-template">Load starter template</button>' +
+    '</div>';
+    html += '<div style="border-top:1px dashed var(--line);padding-top:0.75rem;margin-top:0.75rem;">' +
+      '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Used the original shared Packing Pal before? You can bring that list over instead.</p>' +
+      '<button type="button" class="btn ghost" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating ? 'Importing…' : 'Import that list') + '</button>' +
+    '</div>';
+  }
+  html += '</div>';
   return html;
 }
 
@@ -1412,6 +1451,11 @@ function renderHousehold(){
         (m.email ? ' <span style="color:var(--ink-soft);">(' + escapeHtml(m.email) + ')</span>' : '') + '</div>';
     });
   }
+  if (STATE.master.categories.length === 0){
+    html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Starter template</h2>';
+    html += '<p class="empty-state" style="padding:0;text-align:left;">Load a generic packing list (clothes, toiletries, documents…) to edit instead of starting from a blank Manage screen.</p>';
+    html += '<button type="button" class="btn ghost" data-action="add-starter-template">Load starter template</button>';
+  }
   html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Import original list</h2>';
   if (UI.confirmingImport){
     html += '<p style="color:var(--critical);font-size:0.82rem;margin:0 0 0.5rem;">This replaces this household’s current categories, locations, and people with the original shared list — anything you’ve already added here will be lost. Are you sure?</p>';
@@ -1610,6 +1654,7 @@ document.addEventListener('click', function(e){
       break;
     case 'finish-onboarding': UI.view = 'trips'; saveUISnapshot(); render(); break;
     case 'import-legacy-data': migrateLegacyData(); break;
+    case 'add-starter-template': addStarterTemplate(); render(); break;
     case 'confirm-import-legacy':
       UI.confirmingImport = true; UI.onboardInviteError = ''; render();
       break;
