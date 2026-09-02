@@ -706,6 +706,7 @@ async function migrateLegacyData(){
     UI.onboardInviteError = 'Import failed — try again in a moment.';
   }
   UI.migrating = false;
+  UI.confirmingImport = false;
   render();
 }
 
@@ -1411,6 +1412,18 @@ function renderHousehold(){
         (m.email ? ' <span style="color:var(--ink-soft);">(' + escapeHtml(m.email) + ')</span>' : '') + '</div>';
     });
   }
+  html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Import original list</h2>';
+  if (UI.confirmingImport){
+    html += '<p style="color:var(--critical);font-size:0.82rem;margin:0 0 0.5rem;">This replaces this household’s current categories, locations, and people with the original shared list — anything you’ve already added here will be lost. Are you sure?</p>';
+    html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+      '<button type="button" class="btn" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating?'Importing…':'Yes, replace my list') + '</button>' +
+      '<button type="button" class="btn ghost" data-action="cancel-import-legacy"' + (UI.migrating?' disabled':'') + '>Cancel</button>' +
+    '</div>';
+  } else {
+    html += '<p class="empty-state" style="padding:0;text-align:left;">Bring over the categories, locations, and people from the original pre-account Packing Pal list.</p>';
+    html += '<button type="button" class="btn ghost" data-action="confirm-import-legacy">Import original list</button>';
+  }
+  if (UI.onboardInviteError) html += '<p style="color:var(--critical);font-size:0.82rem;margin-top:0.5rem;">' + escapeHtml(UI.onboardInviteError) + '</p>';
   html += '<div style="margin-top:1.5rem;"><button type="button" class="btn ghost" data-action="sign-out">Sign out</button></div>';
   return html;
 }
@@ -1597,6 +1610,12 @@ document.addEventListener('click', function(e){
       break;
     case 'finish-onboarding': UI.view = 'trips'; saveUISnapshot(); render(); break;
     case 'import-legacy-data': migrateLegacyData(); break;
+    case 'confirm-import-legacy':
+      UI.confirmingImport = true; UI.onboardInviteError = ''; render();
+      break;
+    case 'cancel-import-legacy':
+      UI.confirmingImport = false; render();
+      break;
     case 'go-household':
       UI.view = 'household'; HOUSEHOLD.membersLoaded = false; saveUISnapshot(); render();
       loadHouseholdMembers();
