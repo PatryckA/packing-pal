@@ -1,7 +1,7 @@
 {
   "name": "Packing Pal",
   "short_name": "Packing Pal",
-  "description": "Shared family packing list for Pat, Wendy, and Maddy.",
+  "description": "A shared packing list for your household — trips, people, and gear, organized your way.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
