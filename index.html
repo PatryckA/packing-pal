@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Packing Pal</title>
-<meta name="description" content="Shared family packing list for Pat, Wendy, and Maddy.">
+<meta name="description" content="A shared packing list for your household — trips, people, and gear, organized your way.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#146B69">
 <link rel="icon" href="icon-192.png">
@@ -21,8 +21,6 @@
   --surface-2:#F5EEDC; --line:#DCD0AF; --accent:#146B69; --accent-strong:#0E4F4E;
   --accent-contrast:#FBF7EC; --accent-bg:#DCEAE7; --done:#3F7D53; --done-bg:#DFEBE1;
   --critical:#B23A2E; --shadow:rgba(27,43,42,0.10);
-  --p-pat:#2B5F8A; --p-pat-bg:#DCE7F0; --p-wendy:#8C3E63; --p-wendy-bg:#F0DEE6;
-  --p-maddy:#B5701F; --p-maddy-bg:#F3E3CB;
   --font-display:'Fraunces',Georgia,'Times New Roman',serif;
   --font-body:'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;
 }
@@ -32,8 +30,6 @@
     --surface-2:#212C29; --line:#2C3835; --accent:#4FC3B8; --accent-strong:#7BD8CE;
     --accent-contrast:#0B1615; --accent-bg:#1E332F; --done:#6FBF8B; --done-bg:#1E3226;
     --critical:#E2726A; --shadow:rgba(0,0,0,0.45);
-    --p-pat:#7FB0DA; --p-pat-bg:#1E2E3B; --p-wendy:#DE93B4; --p-wendy-bg:#33212A;
-    --p-maddy:#E3A957; --p-maddy-bg:#362A18;
   }
 }
 :root[data-theme="dark"]{
@@ -41,8 +37,6 @@
   --surface-2:#212C29; --line:#2C3835; --accent:#4FC3B8; --accent-strong:#7BD8CE;
   --accent-contrast:#0B1615; --accent-bg:#1E332F; --done:#6FBF8B; --done-bg:#1E3226;
   --critical:#E2726A; --shadow:rgba(0,0,0,0.45);
-  --p-pat:#7FB0DA; --p-pat-bg:#1E2E3B; --p-wendy:#DE93B4; --p-wendy-bg:#33212A;
-  --p-maddy:#E3A957; --p-maddy-bg:#362A18;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -130,9 +124,6 @@ main{flex:1; padding:1rem 1rem 4rem;}
   padding:0.32rem 0.75rem; font-size:0.8rem; font-weight:700; cursor:pointer;
 }
 .chip-filter.active{background:var(--accent); border-color:var(--accent); color:var(--accent-contrast);}
-.chip-filter.p-pat.active{background:var(--p-pat); border-color:var(--p-pat); color:#fff;}
-.chip-filter.p-wendy.active{background:var(--p-wendy); border-color:var(--p-wendy); color:#fff;}
-.chip-filter.p-maddy.active{background:var(--p-maddy); border-color:var(--p-maddy); color:#fff;}
 .overall-progress{margin-bottom:1.1rem;}
 
 .category-card{
@@ -161,12 +152,6 @@ main{flex:1; padding:1rem 1rem 4rem;}
   cursor:pointer; color:var(--ink-soft); flex:none; padding:0;
 }
 .pchip.on{color:#fff;}
-.pchip.p-pat.on{background:var(--p-pat); border-color:var(--p-pat);}
-.pchip.p-wendy.on{background:var(--p-wendy); border-color:var(--p-wendy);}
-.pchip.p-maddy.on{background:var(--p-maddy); border-color:var(--p-maddy);}
-.pchip.p-pat{border-color:var(--p-pat); color:var(--p-pat);}
-.pchip.p-wendy{border-color:var(--p-wendy); color:var(--p-wendy);}
-.pchip.p-maddy{border-color:var(--p-maddy); color:var(--p-maddy);}
 .item-row.done .item-name{color:var(--ink-soft); text-decoration:line-through;}
 
 .solo-row{
@@ -257,9 +242,38 @@ main{flex:1; padding:1rem 1rem 4rem;}
 .manage-empty{color:var(--ink-soft); font-size:0.85rem; padding:0.8rem 0;}
 .people-legend{display:flex; gap:1rem; flex-wrap:wrap; font-size:0.72rem; color:var(--ink-soft); margin-bottom:1rem;}
 .people-legend span{display:inline-flex; align-items:center; gap:0.3rem;}
-.dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
-.dot.p-pat{background:var(--p-pat);} .dot.p-wendy{background:var(--p-wendy);} .dot.p-maddy{background:var(--p-maddy);}
+.dot{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none;}
 ::-webkit-scrollbar{height:6px;}
+
+/* ---- Sign-in / onboarding / household ---- */
+.authscreen{
+  min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:2rem 1.25rem; gap:1.1rem;
+}
+.authscreen .brand-mark{font-family:var(--font-display); font-size:2rem; font-weight:700;}
+.authscreen p{color:var(--ink-soft); font-size:0.92rem; max-width:26rem; margin:0;}
+.gbtn{
+  display:inline-flex; align-items:center; gap:0.6rem; background:var(--surface); color:var(--ink);
+  border:1px solid var(--line); border-radius:8px; padding:0.65rem 1.2rem; font-weight:700;
+  font-size:0.92rem; cursor:pointer;
+}
+.gbtn:hover{border-color:var(--accent);}
+.onboard-card{
+  max-width:420px; margin:2rem auto; background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem;
+}
+.onboard-card h2{font-size:1.2rem;}
+.onboard-card input[type="text"]{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:7px; padding:0.55rem 0.7rem;
+  color:var(--ink); font-size:0.95rem;
+}
+.onboard-choice{display:flex; flex-direction:column; gap:0.6rem;}
+.invite-box{
+  display:flex; align-items:center; gap:0.5rem; background:var(--surface-2); border:1px dashed var(--line);
+  border-radius:7px; padding:0.6rem 0.7rem; font-size:0.82rem; color:var(--ink-soft); word-break:break-all;
+}
+.member-row{display:flex; align-items:center; gap:0.6rem; padding:0.5rem 0; border-top:1px solid var(--line); font-size:0.88rem;}
+.member-row:first-of-type{border-top:none;}
 </style>
 </head>
 <body>
@@ -267,9 +281,12 @@ main{flex:1; padding:1rem 1rem 4rem;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, onSnapshot
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+  collection, onSnapshot, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import {
+  getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 /* ---------------------------------------------------------------------
    Firebase — this project's data lives in Cloud Firestore, synced live
@@ -277,6 +294,9 @@ import {
    version" to fall behind, and edits below write to a single field or
    document at a time so two people changing different things can never
    clobber each other.
+
+   Every household's data lives under households/{householdId} — see the
+   "Households" section below for how a signed-in user gets there.
 --------------------------------------------------------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyDZV7aDhVJNXLVdxtlUrDwZasaO1lC5HAM",
@@ -288,50 +308,65 @@ const firebaseConfig = {
 };
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 /* ---------------------------------------------------------------------
-   PEOPLE
+   PEOPLE — who items get assigned to. Fully household-defined: a brand
+   new household starts with nobody, and adds its own people from the
+   onboarding step or the Manage screen's People tab. Not the same thing
+   as an account (see Households below) — a household can have people
+   who don't sign in at all (e.g. kids), and an account holder doesn't
+   have to be one of the assignable "people".
 --------------------------------------------------------------------- */
-const PEOPLE = [
-  {id:'pat', name:'Pat'},
-  {id:'wendy', name:'Wendy'},
-  {id:'maddy', name:'Maddy'}
-];
-function personName(id){ const p = PEOPLE.find(p=>p.id===id); return p ? p.name : id; }
+function getPeople(){ return (STATE.master && STATE.master.people) || []; }
+function personName(id){ const p = getPeople().find(p=>p.id===id); return p ? p.name : id; }
 
-// Trip-specific extra people (feature: add someone beyond Pat/Wendy/Maddy
-// to just one trip) don't have a CSS class of their own since their id is
-// generated at add-time — this small palette is assigned by position and
-// applied as inline styles instead.
-const EXTRA_PERSON_COLORS = ['#6B5B95', '#C97C5D', '#4C8577', '#A85751', '#3E6B8A'];
-// The base people (Pat/Wendy/Maddy) actually on this trip come from
-// trip.people, chosen in the "Who's travelling?" survey. Trips created
-// before that field existed have no trip.people, so fall back to all
-// three for them.
+// Colour palette for person chips/dots, assigned by each person's
+// position — household people first, then (on a trip) anyone added just
+// for that trip. Plain inline styles rather than CSS classes since a
+// household's people are arbitrary, not a fixed known set.
+const PERSON_COLORS = ['#2B5F8A','#8C3E63','#B5701F','#3E7D5A','#6B5B95','#A85751','#3E6B8A','#8A6D3E'];
+function personColorIndex(trip, personId){
+  const idx = getPeople().findIndex(p => p.id === personId);
+  if (idx !== -1) return idx;
+  const extra = (trip && trip.extraPeople) || [];
+  const eIdx = extra.findIndex(p => p.id === personId);
+  if (eIdx !== -1) return getPeople().length + eIdx;
+  return 0;
+}
+function personChipAttrs(trip, personId, on){
+  const c = PERSON_COLORS[personColorIndex(trip, personId) % PERSON_COLORS.length];
+  const style = on ? ('background:' + c + ';border-color:' + c + ';color:#fff;') : ('border-color:' + c + ';color:' + c + ';');
+  return { cls: '', style: style };
+}
+// The base household people actually on this trip come from trip.people,
+// chosen in the "Who's travelling?" survey. Trips created before that
+// field existed have no trip.people, so fall back to everyone.
 function tripPeople(trip){
   const base = (trip && Array.isArray(trip.people))
-    ? PEOPLE.filter(p => trip.people.includes(p.id))
-    : PEOPLE;
+    ? getPeople().filter(p => trip.people.includes(p.id))
+    : getPeople();
   return base.concat((trip && trip.extraPeople) || []);
 }
 function personNameInTrip(trip, id){
-  const base = PEOPLE.find(p => p.id === id);
+  const base = getPeople().find(p => p.id === id);
   if (base) return base.name;
   const extra = ((trip && trip.extraPeople) || []).find(p => p.id === id);
   return extra ? extra.name : id;
 }
-// Returns the class/style to use for a person chip. Base people (pat/
-// wendy/maddy) use the existing CSS classes; anyone added to a specific
-// trip gets an inline colour from the palette above, since a CSS rule
-// can't target an id that doesn't exist until someone adds them.
-function personChipAttrs(trip, personId, on){
-  if (personId === 'pat' || personId === 'wendy' || personId === 'maddy'){
-    return { cls: 'p-' + personId, style: '' };
-  }
-  const idx = trip ? (trip.extraPeople || []).findIndex(p => p.id === personId) : -1;
-  const c = EXTRA_PERSON_COLORS[idx >= 0 ? idx % EXTRA_PERSON_COLORS.length : 0];
-  const style = on ? ('background:' + c + ';border-color:' + c + ';color:#fff;') : ('border-color:' + c + ';color:' + c + ';');
-  return { cls: '', style: style };
+// Pre-checked "who" chips for an add-item/add-reminder form — plain
+// label+checkbox pairs, not yet part of STATE, so the on/off look has to
+// travel with the markup itself (via data-on-style/data-off-style) for
+// the change handler to swap between when someone unticks a person.
+function whoCheckboxChips(trip){
+  let html = '';
+  tripPeople(trip).forEach(p => {
+    const onStyle = personChipAttrs(trip, p.id, true).style;
+    const offStyle = personChipAttrs(trip, p.id, false).style;
+    html += '<label class="pchip on" style="' + onStyle + 'cursor:pointer;" data-on-style="' + escapeHtml(onStyle) + '" data-off-style="' + escapeHtml(offStyle) + '">' +
+      '<input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + escapeHtml(p.name.charAt(0)) + '</span></label>';
+  });
+  return html;
 }
 
 /* ---------------------------------------------------------------------
@@ -347,7 +382,6 @@ const DEFAULT_LOCATIONS = [
   {id:'bathroom', name:'Bathroom'},
   {id:'linen', name:'Linen closet'},
   {id:'office', name:'Office'},
-  {id:'maddysroom', name:"Maddy's Room"},
   {id:'downstairs', name:'Downstairs'},
   {id:'garage', name:'Garage'},
   {id:'car', name:'Car'}
@@ -423,9 +457,199 @@ let offlineMode = false;
 /* ---------------------------------------------------------------------
    STATE — filled in live by Firestore listeners, not read from the page
 --------------------------------------------------------------------- */
-let STATE = { master: { categories: [], beforeWeLeave: [] }, trips: [] };
+let STATE = { master: { categories: [], beforeWeLeave: [], people: [] }, trips: [] };
 let masterLoaded = false;
 let tripsLoaded = false;
+
+/* ---------------------------------------------------------------------
+   HOUSEHOLDS & AUTH — every household's data lives isolated under
+   households/{householdId}; a signed-in Google account maps to at most
+   one household via users/{uid}.householdId. Joining a household means
+   creating households/{id}/members/{uid} — households/{id} is only
+   reachable if you know its id (a long random Firestore-generated
+   token), so holding the invite link is what lets someone join, with no
+   separate approval step.
+--------------------------------------------------------------------- */
+let AUTH = { user: null, resolved: false };
+let HOUSEHOLD = { id: null, name: '', resolved: false, members: [], membersLoaded: false };
+// A ?join=<householdId> invite link, read once at startup and stripped
+// from the URL so refreshing doesn't keep re-triggering the prompt.
+let pendingJoinId = null;
+(function readJoinLink(){
+  try {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('join');
+    if (id){
+      pendingJoinId = id;
+      params.delete('join');
+      const qs = params.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+    }
+  } catch(e){}
+})();
+
+function signIn(){
+  signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
+    console.warn('Packing Pal: sign-in failed', err);
+  });
+}
+function signOutUser(){
+  firebaseSignOut(auth).catch(err => console.warn('Packing Pal: sign-out failed', err));
+}
+let unsubMaster = null, unsubTrips = null, listenersHouseholdId = null;
+function stopHouseholdListeners(){
+  if (unsubMaster) unsubMaster();
+  if (unsubTrips) unsubTrips();
+  unsubMaster = null; unsubTrips = null; listenersHouseholdId = null;
+  masterLoaded = false; tripsLoaded = false;
+}
+function startHouseholdListeners(householdId){
+  if (listenersHouseholdId === householdId) return;
+  stopHouseholdListeners();
+  listenersHouseholdId = householdId;
+  unsubMaster = onSnapshot(doc(db, 'households', householdId, 'state', 'master'),
+    (snap) => {
+      STATE.master = snap.exists() ? snap.data() : { categories: [], beforeWeLeave: [], people: [] };
+      const wasLoaded = masterLoaded;
+      masterLoaded = true;
+      if (!wasLoaded || UI.view === 'manage') render();
+    },
+    (err) => { console.warn('Packing Pal: master listener error', err); }
+  );
+  unsubTrips = onSnapshot(collection(db, 'households', householdId, 'trips'),
+    (snap) => {
+      const trips = snap.docs.map(d => d.data());
+      trips.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+      STATE.trips = trips;
+      const wasLoaded = tripsLoaded;
+      tripsLoaded = true;
+      if (!wasLoaded || UI.view === 'trips' || UI.view === 'pack') render();
+    },
+    (err) => { console.warn('Packing Pal: trips listener error', err); }
+  );
+}
+function tripDoc(id){ return doc(db, 'households', HOUSEHOLD.id, 'trips', id); }
+function masterDoc(){ return doc(db, 'households', HOUSEHOLD.id, 'state', 'master'); }
+
+// Looks up (once per sign-in) which household this account belongs to.
+// If it has none and we arrived via an invite link, resolves that
+// link's household name for the join-confirmation prompt instead.
+async function resolveHousehold(){
+  HOUSEHOLD = { id: null, name: '', resolved: false, members: [], membersLoaded: false };
+  render();
+  try {
+    const userSnap = await getDoc(doc(db, 'users', AUTH.user.uid));
+    const householdId = userSnap.exists() ? userSnap.data().householdId : null;
+    if (householdId){
+      const hhSnap = await getDoc(doc(db, 'households', householdId));
+      HOUSEHOLD.id = householdId;
+      HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
+      HOUSEHOLD.resolved = true;
+      startHouseholdListeners(householdId);
+      render();
+      return;
+    }
+    if (pendingJoinId){
+      const inviteSnap = await getDoc(doc(db, 'households', pendingJoinId));
+      if (inviteSnap.exists()){
+        UI.onboardInviteName = inviteSnap.data().name || 'a household';
+      } else {
+        UI.onboardInviteError = "That invite link doesn't look valid anymore.";
+        pendingJoinId = null;
+      }
+    }
+    HOUSEHOLD.resolved = true;
+    render();
+  } catch(err){
+    console.warn('Packing Pal: household lookup failed', err);
+    UI.onboardInviteError = 'Something went wrong loading your account — try refreshing.';
+    HOUSEHOLD.resolved = true;
+    render();
+  }
+}
+async function createHousehold(name){
+  if (!AUTH.user) return;
+  const householdRef = doc(collection(db, 'households'));
+  const batch = writeBatch(db);
+  batch.set(householdRef, {
+    name: name.trim() || 'Our household', ownerUid: AUTH.user.uid, createdAt: new Date().toISOString()
+  });
+  batch.set(doc(db, 'households', householdRef.id, 'members', AUTH.user.uid), {
+    name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
+  });
+  batch.set(doc(db, 'households', householdRef.id, 'state', 'master'), { categories: [], beforeWeLeave: [], people: [] });
+  batch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdRef.id });
+  await batch.commit();
+  HOUSEHOLD.id = householdRef.id;
+  HOUSEHOLD.name = name.trim() || 'Our household';
+  HOUSEHOLD.resolved = true;
+  UI.onboardMode = 'people';
+  startHouseholdListeners(householdRef.id);
+  render();
+}
+async function joinHousehold(householdId){
+  if (!AUTH.user) return;
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'households', householdId, 'members', AUTH.user.uid), {
+    name: AUTH.user.displayName || AUTH.user.email || 'Someone', email: AUTH.user.email || '', joinedAt: new Date().toISOString()
+  });
+  batch.set(doc(db, 'users', AUTH.user.uid), { householdId: householdId });
+  await batch.commit();
+  const hhSnap = await getDoc(doc(db, 'households', householdId));
+  HOUSEHOLD.id = householdId;
+  HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
+  HOUSEHOLD.resolved = true;
+  pendingJoinId = null;
+  startHouseholdListeners(householdId);
+  render();
+}
+async function loadHouseholdMembers(){
+  if (!HOUSEHOLD.id) return;
+  try {
+    const snap = await getDocs(collection(db, 'households', HOUSEHOLD.id, 'members'));
+    HOUSEHOLD.members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(err){
+    console.warn('Packing Pal: loading members failed', err);
+  }
+  HOUSEHOLD.membersLoaded = true;
+  render();
+}
+function inviteLink(){
+  return location.origin + location.pathname + '?join=' + encodeURIComponent(HOUSEHOLD.id || '');
+}
+// One-time import of this Firebase project's pre-account data (the
+// original single shared household) into a brand new household. Only
+// meaningful for whoever's reclaiming that old data; harmless no-op
+// (empty categories) for anyone else since it just copies what's there.
+async function migrateLegacyData(){
+  if (!HOUSEHOLD.id) return;
+  UI.migrating = true; render();
+  try {
+    const legacyMasterSnap = await getDoc(doc(db, 'state', 'master'));
+    const legacyTripsSnap = await getDocs(collection(db, 'trips'));
+    const batch = writeBatch(db);
+    if (legacyMasterSnap.exists()){
+      const legacyMaster = legacyMasterSnap.data();
+      // The legacy list predates named people entirely — its who[]
+      // arrays reference the ids 'pat'/'wendy'/'maddy' directly, so
+      // seeding those same ids as people keeps every assignment working;
+      // rename or remove them afterwards from the People tab as you like.
+      legacyMaster.people = [
+        {id:'pat', name:'Pat'}, {id:'wendy', name:'Wendy'}, {id:'maddy', name:'Maddy'}
+      ];
+      batch.set(doc(db, 'households', HOUSEHOLD.id, 'state', 'master'), legacyMaster);
+    }
+    legacyTripsSnap.docs.forEach(d => {
+      batch.set(doc(db, 'households', HOUSEHOLD.id, 'trips', d.id), d.data());
+    });
+    await batch.commit();
+  } catch(err){
+    console.warn('Packing Pal: legacy import failed', err);
+    UI.onboardInviteError = 'Import failed — try again in a moment.';
+  }
+  UI.migrating = false;
+  render();
+}
 
 /* ---------------------------------------------------------------------
    Helpers
@@ -461,13 +685,13 @@ function createTrip(name, conditions, people, guestNames){
   // Who's travelling — the base people ticked in the survey, kept in
   // canonical order, plus any typed-in guests. If nobody at all was
   // picked, assume the whole household rather than make an empty trip.
-  let peopleIds = PEOPLE.map(p => p.id).filter(id => (people || []).includes(id));
+  let peopleIds = getPeople().map(p => p.id).filter(id => (people || []).includes(id));
   const extraPeople = (guestNames || [])
     .map(n => String(n || '').trim())
     .filter(Boolean)
     .map(n => ({ id: uid('person'), name: n }));
   if (peopleIds.length === 0 && extraPeople.length === 0){
-    peopleIds = PEOPLE.map(p => p.id);
+    peopleIds = getPeople().map(p => p.id);
   }
   const travelling = peopleIds.concat(extraPeople.map(p => p.id));
   // An item with no tags always comes along; a tagged item comes along
@@ -501,17 +725,17 @@ function createTrip(name, conditions, people, guestNames){
   UI.packFilter = 'all';
   UI.packSort = 'location';
   try { localStorage.setItem('packingpal-current-trip', trip.id); } catch(e){}
-  setDoc(doc(db, 'trips', trip.id), trip).catch(handleSaveError);
+  setDoc(tripDoc(trip.id), trip).catch(handleSaveError);
 }
 // Adds someone to just this trip's roster (e.g. a grandparent joining one
-// holiday) — Pat, Wendy and Maddy stay the permanent baseline everywhere
-// else; this only ever affects the one trip.
+// holiday) — the household's own people stay the permanent baseline
+// everywhere else; this only ever affects the one trip.
 function addTripPerson(tripId, name){
   const trip = findTrip(tripId);
   if (!trip || !name.trim()) return;
   if (!trip.extraPeople) trip.extraPeople = [];
   trip.extraPeople.push({ id: uid('person'), name: name.trim() });
-  updateDoc(doc(db, 'trips', tripId), { extraPeople: trip.extraPeople }).catch(handleSaveError);
+  updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople }).catch(handleSaveError);
 }
 function removeTripPerson(tripId, personId){
   const trip = findTrip(tripId);
@@ -527,12 +751,12 @@ function removeTripPerson(tripId, personId){
     const idx = item.who.indexOf(personId);
     if (idx !== -1) item.who.splice(idx, 1);
   });
-  updateDoc(doc(db, 'trips', tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
 function deleteTrip(id){
   STATE.trips = STATE.trips.filter(t => t.id !== id);
   if (UI.currentTripId === id){ UI.currentTripId = null; UI.view = 'trips'; }
-  deleteDoc(doc(db, 'trips', id)).catch(handleSaveError);
+  deleteDoc(tripDoc(id)).catch(handleSaveError);
 }
 function togglePacked(tripId, itemId, personId){
   const trip = findTrip(tripId);
@@ -540,7 +764,7 @@ function togglePacked(tripId, itemId, personId){
   trip.packed[itemId] = trip.packed[itemId] || {};
   trip.packed[itemId][personId] = !trip.packed[itemId][personId];
   const fieldPath = 'packed.' + itemId + '.' + personId;
-  updateDoc(doc(db, 'trips', tripId), { [fieldPath]: trip.packed[itemId][personId] }).catch(handleSaveError);
+  updateDoc(tripDoc(tripId), { [fieldPath]: trip.packed[itemId][personId] }).catch(handleSaveError);
 }
 // Adds a reminder to THIS trip's own before-we-leave list only — it
 // won't appear on other trips and won't change the master list, since
@@ -548,8 +772,8 @@ function togglePacked(tripId, itemId, personId){
 function addTripBwl(tripId, name, who){
   const trip = findTrip(tripId);
   if (!trip || !name.trim()) return;
-  trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
-  updateDoc(doc(db, 'trips', tripId), { beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : tripPeople(trip).map(p => p.id)});
+  updateDoc(tripDoc(tripId), { beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
 // Moves an item you're not ready to pack yet out of its category and
 // into this trip's own Before We Leave list — just for this trip, not
@@ -565,7 +789,7 @@ function moveTripItemToBwl(tripId, itemId){
   });
   if (!found) return;
   trip.beforeWeLeave.push({ id: found.id, name: found.name, who: found.who });
-  updateDoc(doc(db, 'trips', tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  updateDoc(tripDoc(tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
 }
 // Reassigns who's packing this item for THIS trip only — the master
 // list (and every other trip) is untouched. Useful when you decide,
@@ -581,13 +805,13 @@ function toggleTripItemAssignee(tripId, itemId, personId){
   if (!item) return;
   const idx = item.who.indexOf(personId);
   if (idx === -1) item.who.push(personId); else item.who.splice(idx, 1);
-  updateDoc(doc(db, 'trips', tripId), { categories: trip.categories }).catch(handleSaveError);
+  updateDoc(tripDoc(tripId), { categories: trip.categories }).catch(handleSaveError);
 }
 function addItem(catId, name, who, location, tags){
   const cat = findCategory(catId);
   if (!cat || !name.trim()) return;
   cat.items.push({
-    id: uid('item'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy'],
+    id: uid('item'), name: name.trim(), who: who.length ? who : getPeople().map(p => p.id),
     location: location || 'bedroom', tags: tags || []
   });
   scheduleMasterSave();
@@ -648,6 +872,33 @@ function toggleItemAssignee(catId, itemId, personId){
   if (idx === -1) item.who.push(personId); else item.who.splice(idx,1);
   scheduleMasterSave();
 }
+function addPerson(name){
+  if (!name.trim()) return;
+  if (!STATE.master.people) STATE.master.people = [];
+  STATE.master.people.push({ id: uid('pers'), name: name.trim() });
+  scheduleMasterSave();
+}
+function renamePerson(personId, name){
+  const p = getPeople().find(p => p.id === personId);
+  if (p) p.name = name;
+  scheduleMasterSave();
+}
+// Removes a person from the household roster and strips them from every
+// master-list item's assignment, so they don't linger as an invisible
+// assignee nobody can see or clear. Trips already created keep their own
+// copy either way (same as deleting a category).
+function deletePerson(personId){
+  STATE.master.people = getPeople().filter(p => p.id !== personId);
+  STATE.master.categories.forEach(cat => cat.items.forEach(item => {
+    const idx = item.who.indexOf(personId);
+    if (idx !== -1) item.who.splice(idx, 1);
+  }));
+  STATE.master.beforeWeLeave.forEach(item => {
+    const idx = item.who.indexOf(personId);
+    if (idx !== -1) item.who.splice(idx, 1);
+  });
+  scheduleMasterSave();
+}
 function addCategory(name){
   if (!name.trim()) return;
   const cat = {id: uid('cat'), name: name.trim(), items: []};
@@ -662,7 +913,7 @@ function deleteCategory(catId){
 }
 function addBwl(name, who){
   if (!name.trim()) return;
-  STATE.master.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : ['pat','wendy','maddy']});
+  STATE.master.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : getPeople().map(p => p.id)});
   scheduleMasterSave();
 }
 function deleteBwl(itemId){
@@ -686,12 +937,12 @@ let masterSaveTimer = null;
 function scheduleMasterSave(){
   clearTimeout(masterSaveTimer);
   masterSaveTimer = setTimeout(() => {
-    setDoc(doc(db, 'state', 'master'), STATE.master).catch(handleSaveError);
+    setDoc(masterDoc(), STATE.master).catch(handleSaveError);
   }, 800);
 }
 function flushMasterSaveNow(){
   clearTimeout(masterSaveTimer);
-  setDoc(doc(db, 'state', 'master'), STATE.master).catch(handleSaveError);
+  setDoc(masterDoc(), STATE.master).catch(handleSaveError);
 }
 function handleSaveError(err){
   console.warn('Packing Pal: save failed', err);
@@ -702,8 +953,28 @@ function handleSaveError(err){
 --------------------------------------------------------------------- */
 function render(){
   const app = document.getElementById('app');
+  if (!AUTH.resolved){
+    app.innerHTML = '<div class="loading-state">Loading Packing Pal…</div>';
+    return;
+  }
+  if (!AUTH.user){
+    app.innerHTML = renderSignIn();
+    return;
+  }
+  if (!HOUSEHOLD.resolved){
+    app.innerHTML = '<div class="loading-state">Loading your account…</div>';
+    return;
+  }
+  if (!HOUSEHOLD.id){
+    app.innerHTML = renderOnboarding();
+    return;
+  }
   if (!masterLoaded || !tripsLoaded){
     app.innerHTML = '<div class="loading-state">Loading Packing Pal…</div>';
+    return;
+  }
+  if (getPeople().length === 0){
+    app.innerHTML = renderOnboardingPeople();
     return;
   }
   let body = '';
@@ -714,10 +985,57 @@ function render(){
   body += renderTopbar();
   body += '<main>';
   if (UI.view === 'manage') body += renderManage();
+  else if (UI.view === 'household') body += renderHousehold();
   else if (UI.view === 'pack' && UI.currentTripId && findTrip(UI.currentTripId)) body += renderPack();
   else { UI.view = 'trips'; body += renderTrips(); }
   body += '</main></div>';
   app.innerHTML = body;
+}
+function renderSignIn(){
+  return '<div class="authscreen">' +
+    '<span class="brand-mark">Packing Pal</span>' +
+    '<p>A shared packing list for your household — trips, people, locations, and gear, organized your way. Sign in to create your household or join one you’ve been invited to.</p>' +
+    '<button class="gbtn" data-action="sign-in">' + googleGSvg() + ' Continue with Google</button>' +
+  '</div>';
+}
+function googleGSvg(){
+  return '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 009 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 013.68 9c0-.59.1-1.17.27-1.7V4.97H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>';
+}
+function renderOnboarding(){
+  if (pendingJoinId) return renderOnboardingJoin();
+  return renderOnboardingCreate();
+}
+function renderOnboardingCreate(){
+  return '<div class="onboard-card">' +
+    '<h2>Set up your household</h2>' +
+    '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">This becomes your own private packing list — nobody sees it unless you invite them.</p>' +
+    (UI.onboardInviteError ? '<p style="color:var(--critical);font-size:0.82rem;margin:0;">' + escapeHtml(UI.onboardInviteError) + '</p>' : '') +
+    '<form data-action="create-household" style="display:flex;flex-direction:column;gap:0.6rem;">' +
+      '<input type="text" name="name" placeholder="Household name, e.g. The Smiths" autofocus required>' +
+      '<button type="submit" class="btn">Get started</button>' +
+    '</form>' +
+  '</div>';
+}
+function renderOnboardingJoin(){
+  const name = UI.onboardInviteName || 'a household';
+  return '<div class="onboard-card">' +
+    '<h2>Join ' + escapeHtml(name) + '</h2>' +
+    '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">You’ve been invited to share this household’s packing lists.</p>' +
+    '<button type="button" class="btn" data-action="join-household">Join household</button>' +
+    '<button type="button" class="btn ghost" data-action="decline-invite">Set up my own household instead</button>' +
+  '</div>';
+}
+function renderOnboardingPeople(){
+  let html = '<div class="onboard-card">' +
+    '<h2>Who’s in your household?</h2>' +
+    '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">Add the people you’ll assign packing items to — you can rename or add more anytime from Manage list.</p>';
+  html += renderPeopleList();
+  html += '<button type="button" class="btn" data-action="finish-onboarding"' + (getPeople().length===0?' disabled':'') + '>Continue to Packing Pal</button>';
+  html += '<div style="border-top:1px dashed var(--line);padding-top:0.75rem;margin-top:0.4rem;">' +
+    '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Used the original shared Packing Pal before? You can bring that list over instead of starting from scratch.</p>' +
+    '<button type="button" class="btn ghost" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating ? 'Importing…' : 'Import that list') + '</button>' +
+  '</div></div>';
+  return html;
 }
 
 function renderTopbar(){
@@ -726,6 +1044,7 @@ function renderTopbar(){
     '<div class="topnav">' +
       '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
       '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
+      '<button class="navbtn' + (UI.view==='household'?' active':'') + '" data-action="go-household">Household</button>' +
     '</div></div>';
 }
 
@@ -750,7 +1069,7 @@ function renderTrips(){
         '<input type="text" name="name" placeholder="Trip name, e.g. NZ — Dec 2026" autofocus required>' +
         '<div style="font-size:0.78rem;color:var(--ink-soft);">Who\'s travelling? Untick anyone staying home.</div>' +
         '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
-      PEOPLE.forEach(p => {
+      getPeople().forEach(p => {
         html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;padding:0.2rem 0;cursor:pointer;">' +
           '<input type="checkbox" name="person" value="' + p.id + '" checked> ' + escapeHtml(p.name) + '</label>';
       });
@@ -854,12 +1173,8 @@ function renderPack(){
   if (!bwlCollapsed){
     html += '<div style="padding:0 0.9rem 0.9rem;"><form class="add-row-form" data-action="add-trip-before" data-trip="' + trip.id + '">' +
       '<input type="text" name="name" placeholder="Add a reminder for this trip…" required>' +
-      '<span class="who-toggle">';
-    tripPeople(trip).forEach(p => {
-      const ca = personChipAttrs(trip, p.id, true);
-      html += '<label class="pchip ' + ca.cls + ' on" style="' + ca.style + 'cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
-    });
-    html += '</span><button type="submit" class="btn">Add</button></form></div>';
+      '<span class="who-toggle">' + whoCheckboxChips(trip) +
+    '</span><button type="submit" class="btn">Add</button></form></div>';
   }
   html += '</section>';
   return html;
@@ -980,11 +1295,15 @@ function renderManage(){
   if (!UI.manageTab) UI.manageTab = cats.length ? cats[0].id : '__bwl';
   let html = '<h1 class="section-title">Manage master list</h1>';
   html += '<div class="people-legend">';
-  PEOPLE.forEach(p => { html += '<span><span class="dot p-' + p.id + '"></span>' + p.name + '</span>'; });
+  getPeople().forEach(p => {
+    const c = PERSON_COLORS[personColorIndex(null, p.id) % PERSON_COLORS.length];
+    html += '<span><span class="dot" style="background:' + c + ';"></span>' + escapeHtml(p.name) + '</span>';
+  });
   html += '</div>';
   html += '<p class="empty-state" style="padding:0 0 1rem;text-align:left;">Changes here shape every <em>future</em> trip. Trips you’ve already created keep the list they started with.</p>';
 
   html += '<div class="manage-tabs">';
+  html += '<button class="mtab' + (UI.manageTab==='__people'?' active':'') + '" data-action="manage-tab" data-cat="__people">People</button>';
   cats.forEach(c => {
     html += '<button class="mtab' + (UI.manageTab===c.id?' active':'') + '" data-action="manage-tab" data-cat="' + c.id + '">' + escapeHtml(c.name) + '</button>';
   });
@@ -993,12 +1312,46 @@ function renderManage(){
   html += '</div>';
   html += '<form class="add-cat-form" data-action="add-location" style="margin:-0.5rem 0 0.9rem;"><input type="text" name="name" placeholder="+ New location"></form>';
 
-  if (UI.manageTab === '__bwl'){
+  if (UI.manageTab === '__people'){
+    html += '<div class="manage-head"><h2 style="font-size:1.3rem;">People</h2></div>' + renderPeopleList();
+  } else if (UI.manageTab === '__bwl'){
     html += renderManageBwl();
   } else {
     const cat = findCategory(UI.manageTab);
     if (cat) html += renderManageCategory(cat);
   }
+  return html;
+}
+function renderPeopleList(){
+  const people = getPeople();
+  let html = '';
+  if (people.length === 0) html += '<p class="manage-empty">No people yet — add one below.</p>';
+  people.forEach(p => {
+    const c = PERSON_COLORS[personColorIndex(null, p.id) % PERSON_COLORS.length];
+    html += '<div class="manage-row"><span class="dot" style="background:' + c + ';"></span>' +
+      '<input class="manage-name-input" type="text" value="' + escapeHtml(p.name) + '" data-field="person-name" data-person="' + p.id + '">' +
+      deleteButton('delete-person', p.id, 'Remove person') + '</div>';
+  });
+  html += '<form class="add-cat-form" data-action="add-person" style="margin-top:0.6rem;"><input type="text" name="name" placeholder="+ Add a person"></form>';
+  return html;
+}
+function renderHousehold(){
+  let html = '<h1 class="section-title">' + escapeHtml(HOUSEHOLD.name || 'Household') + '</h1>';
+  html += '<p class="empty-state" style="padding:0 0 1rem;text-align:left;">Anyone with this link can join and see everything in this household — share it only with people you trust.</p>';
+  html += '<div class="invite-box"><span style="flex:1;">' + escapeHtml(inviteLink()) + '</span>' +
+    '<button type="button" class="btn" data-action="copy-invite">' + (UI.inviteCopied ? 'Copied!' : 'Copy') + '</button></div>';
+  html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Members</h2>';
+  if (!HOUSEHOLD.membersLoaded){
+    html += '<p class="manage-empty">Loading…</p>';
+  } else if (HOUSEHOLD.members.length === 0){
+    html += '<p class="manage-empty">Just you so far.</p>';
+  } else {
+    HOUSEHOLD.members.forEach(m => {
+      html += '<div class="member-row">' + escapeHtml(m.name || m.email || 'Someone') +
+        (m.email ? ' <span style="color:var(--ink-soft);">(' + escapeHtml(m.email) + ')</span>' : '') + '</div>';
+    });
+  }
+  html += '<div style="margin-top:1.5rem;"><button type="button" class="btn ghost" data-action="sign-out">Sign out</button></div>';
   return html;
 }
 function deleteButton(action, id, label){
@@ -1023,9 +1376,10 @@ function renderManageCategory(cat){
   cat.items.forEach(item => {
     html += '<div class="manage-row has-location"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="item-name" data-cat="' + cat.id + '" data-item="' + item.id + '">';
     html += '<span class="who-toggle">';
-    PEOPLE.forEach(p => {
+    getPeople().forEach(p => {
       const on = item.who.includes(p.id);
-      html += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-item-assignee" data-cat="' + cat.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+      const ca = personChipAttrs(null, p.id, on);
+      html += '<button class="pchip' + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-item-assignee" data-cat="' + cat.id + '" data-item="' + item.id + '" data-person="' + p.id + '" title="' + escapeHtml(p.name) + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
     });
     html += '</span>';
     html += moveToBwlButton(cat.id, item.id);
@@ -1036,11 +1390,8 @@ function renderManageCategory(cat){
   });
   html += '<form class="add-row-form" data-action="add-item" data-cat="' + cat.id + '">' +
     '<input type="text" name="name" placeholder="Add item to ' + escapeHtml(cat.name) + '…" required>' +
-    '<span class="who-toggle">';
-  PEOPLE.forEach(p => {
-    html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
-  });
-  html += '</span><select class="location-select" name="location">';
+    '<span class="who-toggle">' + whoCheckboxChips(null) +
+  '</span><select class="location-select" name="location">';
   getLocations().forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
   html += '</select><span class="tag-chip-row" title="Only if… leave all unticked to always include">';
   CONDITIONS.forEach(c => {
@@ -1075,9 +1426,10 @@ function renderManageBwl(){
   items.forEach(item => {
     html += '<div class="manage-row"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="before-name" data-item="' + item.id + '">';
     html += '<span class="who-toggle">';
-    PEOPLE.forEach(p => {
+    getPeople().forEach(p => {
       const on = item.who.includes(p.id);
-      html += '<button class="pchip p-' + p.id + (on?' on':'') + '" data-action="toggle-before-assignee" data-item="' + item.id + '" data-person="' + p.id + '" title="' + p.name + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
+      const ca = personChipAttrs(null, p.id, on);
+      html += '<button class="pchip' + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-before-assignee" data-item="' + item.id + '" data-person="' + p.id + '" title="' + escapeHtml(p.name) + (on ? ' (assigned — tap to remove)' : ' (not assigned — tap to add)') + '">' + (on ? p.name.charAt(0) : '') + '</button>';
     });
     html += '</span>';
     html += deleteButton('delete-before', item.id, 'Delete reminder');
@@ -1085,11 +1437,8 @@ function renderManageBwl(){
   });
   html += '<form class="add-row-form" data-action="add-before">' +
     '<input type="text" name="name" placeholder="Add a before-we-leave reminder…" required>' +
-    '<span class="who-toggle">';
-  PEOPLE.forEach(p => {
-    html += '<label class="pchip p-' + p.id + ' on" style="cursor:pointer;"><input type="checkbox" name="who" value="' + p.id + '" checked style="display:none;"><span class="pchip-letter">' + p.name.charAt(0) + '</span></label>';
-  });
-  html += '</span><button type="submit" class="btn">Add reminder</button></form>';
+    '<span class="who-toggle">' + whoCheckboxChips(null) +
+  '</span><button type="submit" class="btn">Add reminder</button></form>';
   return html;
 }
 
@@ -1109,6 +1458,7 @@ function handleDelete(action, id){
   else if (action === 'delete-category') deleteCategory(id);
   else if (action === 'delete-item'){ const [catId,itemId] = id.split('::'); deleteItem(catId,itemId); }
   else if (action === 'delete-before') deleteBwl(id);
+  else if (action === 'delete-person') deletePerson(id);
   render();
 }
 
@@ -1168,12 +1518,34 @@ document.addEventListener('click', function(e){
       toggleBwlAssignee(el.dataset.item, el.dataset.person);
       render();
       break;
-    case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before':
+    case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before': case 'delete-person':
       handleDelete(action, el.dataset.id);
       break;
     case 'move-to-bwl':
       moveItemToBwl(el.dataset.cat, el.dataset.item);
       render();
+      break;
+    case 'sign-in': signIn(); break;
+    case 'sign-out':
+      stopHouseholdListeners();
+      signOutUser();
+      break;
+    case 'join-household': joinHousehold(pendingJoinId); break;
+    case 'decline-invite':
+      pendingJoinId = null; UI.onboardInviteName = null; UI.onboardInviteError = '';
+      render();
+      break;
+    case 'finish-onboarding': UI.view = 'trips'; saveUISnapshot(); render(); break;
+    case 'import-legacy-data': migrateLegacyData(); break;
+    case 'go-household':
+      UI.view = 'household'; HOUSEHOLD.membersLoaded = false; saveUISnapshot(); render();
+      loadHouseholdMembers();
+      break;
+    case 'copy-invite':
+      { const link = inviteLink();
+        (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+          .then(() => { UI.inviteCopied = true; render(); setTimeout(() => { UI.inviteCopied = false; render(); }, 2000); })
+          .catch(() => {}); }
       break;
   }
 });
@@ -1215,6 +1587,12 @@ document.addEventListener('submit', function(e){
     addTripPerson(form.dataset.trip, fd.get('name') || '');
     UI.addingTripPerson = false;
     render();
+  } else if (action === 'add-person'){
+    addPerson(fd.get('name') || '');
+    form.reset();
+    render();
+  } else if (action === 'create-household'){
+    createHousehold(fd.get('name') || '');
   }
 });
 
@@ -1232,6 +1610,9 @@ document.addEventListener('input', function(e){
   } else if (field === 'before-name'){
     const item = STATE.master.beforeWeLeave.find(i => i.id === el.dataset.item);
     if (item) item.name = el.value;
+  } else if (field === 'person-name'){
+    const p = getPeople().find(p => p.id === el.dataset.person);
+    if (p) p.name = el.value;
   }
   scheduleMasterSave();
 });
@@ -1246,6 +1627,8 @@ document.addEventListener('change', function(e){
     const label = cb.closest('label.pchip');
     if (!label) return;
     label.classList.toggle('on', cb.checked);
+    const style = cb.checked ? label.dataset.onStyle : label.dataset.offStyle;
+    if (style !== undefined) label.style.cssText = style + 'cursor:pointer;';
     const letter = label.querySelector('.pchip-letter');
     if (letter) letter.style.visibility = cb.checked ? 'visible' : 'hidden';
     return;
@@ -1261,11 +1644,13 @@ document.addEventListener('change', function(e){
 });
 
 /* ---------------------------------------------------------------------
-   Boot — live Firestore listeners. The master-list listener only
-   re-renders while the Manage screen is open (that's the only view
-   showing master data), and the trips listener only re-renders while
-   the Trips list or a Pack screen is open, so an unrelated update never
-   yanks focus out from under someone mid-edit elsewhere in the app.
+   Boot — waits for Google sign-in state, then resolves which household
+   (if any) this account belongs to. The actual data listeners only start
+   once a household is known — see startHouseholdListeners above. The
+   master-list listener only re-renders while the Manage screen is open
+   (that's the only view showing master data), and the trips listener
+   only re-renders while the Trips list or a Pack screen is open, so an
+   unrelated update never yanks focus out from under someone mid-edit.
 --------------------------------------------------------------------- */
 function boot(){
   render();
@@ -1274,30 +1659,19 @@ function boot(){
     delete UI._restoreScrollY;
   }
 
-  onSnapshot(doc(db, 'state', 'master'),
-    (snap) => {
-      if (snap.exists()) STATE.master = snap.data();
-      const wasLoaded = masterLoaded;
-      masterLoaded = true;
-      // Always render the first time this arrives (that's what clears the
-      // initial loading screen, whichever view we're on) — after that,
-      // only the Manage screen actually shows master data.
-      if (!wasLoaded || UI.view === 'manage') render();
-    },
-    (err) => { console.warn('Packing Pal: master listener error', err); }
-  );
-
-  onSnapshot(collection(db, 'trips'),
-    (snap) => {
-      const trips = snap.docs.map(d => d.data());
-      trips.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-      STATE.trips = trips;
-      const wasLoaded = tripsLoaded;
-      tripsLoaded = true;
-      if (!wasLoaded || UI.view === 'trips' || UI.view === 'pack') render();
-    },
-    (err) => { console.warn('Packing Pal: trips listener error', err); }
-  );
+  onAuthStateChanged(auth, (user) => {
+    AUTH.user = user;
+    AUTH.resolved = true;
+    if (user){
+      resolveHousehold();
+    } else {
+      stopHouseholdListeners();
+      STATE = { master: { categories: [], beforeWeLeave: [], people: [] }, trips: [] };
+      HOUSEHOLD = { id: null, name: '', resolved: false, members: [], membersLoaded: false };
+      UI.view = 'trips'; UI.currentTripId = null;
+      render();
+    }
+  });
 
   window.addEventListener('online', () => { offlineMode = false; render(); });
   window.addEventListener('offline', () => { offlineMode = true; render(); });

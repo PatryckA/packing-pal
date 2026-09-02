@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // A signed-in user's account -> household mapping. Only that user
+    // can read or write their own mapping doc.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    function isMember(householdId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
+    }
+
+    match /households/{householdId} {
+      // A household's id is a long random Firestore-generated token, so
+      // knowing it (via the invite link) is what lets someone preview
+      // its name before joining — get-by-id only, never list/browse all
+      // households.
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow create: if request.auth != null;
+      allow update, delete: if isMember(householdId);
+
+      match /members/{memberUid} {
+        // Anyone signed in can create ONLY their own membership doc —
+        // that's what "joining" means here, with no separate approval
+        // step. Only existing members can read the roster.
+        allow get, list: if isMember(householdId);
+        allow create: if request.auth != null && request.auth.uid == memberUid;
+        allow update, delete: if false;
+      }
+
+      match /state/{doc} {
+        allow read, write: if isMember(householdId);
+      }
+      match /trips/{tripId} {
+        allow read, write: if isMember(householdId);
+      }
+    }
+
+    // Legacy pre-account data (a single shared household with no auth).
+    // Read-only, and only so a signed-in user can run the one-time
+    // "import my existing list" step during onboarding. Once you've
+    // migrated your data (or decided not to), delete this whole block
+    // and the /state and /trips documents themselves.
+    match /state/{doc} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /trips/{tripId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
