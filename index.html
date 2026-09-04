@@ -610,17 +610,33 @@ let tripsLoaded = false;
 let AUTH = { user: null, resolved: false };
 let HOUSEHOLD = { id: null, name: '', resolved: false, members: [], membersLoaded: false };
 // A ?join=<householdId> invite link, read once at startup and stripped
-// from the URL so refreshing doesn't keep re-triggering the prompt.
+// from the URL so refreshing doesn't keep re-triggering the prompt. Also
+// stashed in sessionStorage: signIn() falls back to signInWithRedirect()
+// when a popup can't be used (blocked, mobile, an in-app browser like a
+// chat app's link preview) — that's a full top-level navigation away to
+// Google and back, which reloads this page from scratch and drops both
+// this in-memory variable AND the now-already-stripped query string. The
+// sessionStorage copy is what survives that round trip so the person
+// actually lands on "join household" instead of silently falling through
+// to "set up your own household".
 let pendingJoinId = null;
+function clearPendingJoin(){
+  pendingJoinId = null;
+  try { sessionStorage.removeItem('packingpal-pending-join'); } catch(e){}
+}
 (function readJoinLink(){
   try {
     const params = new URLSearchParams(location.search);
     const id = params.get('join');
     if (id){
       pendingJoinId = id;
+      try { sessionStorage.setItem('packingpal-pending-join', id); } catch(e){}
       params.delete('join');
       const qs = params.toString();
       history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+    } else {
+      const saved = sessionStorage.getItem('packingpal-pending-join');
+      if (saved) pendingJoinId = saved;
     }
   } catch(e){}
 })();
@@ -709,6 +725,10 @@ async function resolveHousehold(){
       HOUSEHOLD.id = householdId;
       HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
       HOUSEHOLD.resolved = true;
+      // Already in a household — an invite link (possibly a stale one
+      // stashed before a redirect round-trip) is moot, so drop it rather
+      // than let it linger and resurface later in this tab.
+      clearPendingJoin();
       startHouseholdListeners(householdId);
       render();
       return;
@@ -719,7 +739,7 @@ async function resolveHousehold(){
         UI.onboardInviteName = inviteSnap.data().name || 'a household';
       } else {
         UI.onboardInviteError = "That invite link doesn't look valid anymore.";
-        pendingJoinId = null;
+        clearPendingJoin();
       }
     }
     HOUSEHOLD.resolved = true;
@@ -788,7 +808,7 @@ async function joinHousehold(householdId){
     HOUSEHOLD.id = householdId;
     HOUSEHOLD.name = hhSnap.exists() ? (hhSnap.data().name || '') : '';
     HOUSEHOLD.resolved = true;
-    pendingJoinId = null;
+    clearPendingJoin();
     startHouseholdListeners(householdId);
   } catch(err){
     console.warn('Packing Pal: join household failed', err);
@@ -1884,7 +1904,7 @@ document.addEventListener('click', function(e){
       break;
     case 'join-household': joinHousehold(pendingJoinId); break;
     case 'decline-invite':
-      pendingJoinId = null; UI.onboardInviteName = null; UI.onboardInviteError = '';
+      clearPendingJoin(); UI.onboardInviteName = null; UI.onboardInviteError = '';
       render();
       break;
     case 'finish-onboarding': UI.view = 'trips'; saveUISnapshot(); render(); break;
