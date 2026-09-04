@@ -59,6 +59,13 @@ a{color:inherit;}
 .brand{display:flex; align-items:baseline; gap:0.4rem;}
 .brand-mark{font-family:var(--font-display); font-size:1.35rem; font-weight:700; letter-spacing:-0.01em;}
 .brand-tag{font-size:0.68rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.08em; display:none;}
+.save-status{font-size:0.68rem; font-weight:700; white-space:nowrap;}
+.save-status.saving{color:var(--ink-soft);}
+.save-status.saved{color:var(--done);}
+.save-status.error{
+  color:var(--critical); background:none; border:none; padding:0; font-family:inherit;
+  font-size:0.68rem; font-weight:700; cursor:pointer; text-decoration:underline;
+}
 .topnav{display:flex; gap:0.4rem;}
 .navbtn{
   background:none; border:1px solid var(--line); color:var(--ink); padding:0.4rem 0.7rem;
@@ -889,7 +896,7 @@ function createTrip(name, conditions, people, guestNames){
   UI.packFilter = 'all';
   UI.packSort = 'category';
   try { localStorage.setItem('packingpal-current-trip', trip.id); } catch(e){}
-  setDoc(tripDoc(trip.id), trip).catch(handleSaveError);
+  trackWrite(() => setDoc(tripDoc(trip.id), trip));
 }
 // Adds someone to just this trip's roster (e.g. a grandparent joining one
 // holiday) — the household's own people stay the permanent baseline
@@ -899,7 +906,7 @@ function addTripPerson(tripId, name){
   if (!trip || !name.trim()) return;
   if (!trip.extraPeople) trip.extraPeople = [];
   trip.extraPeople.push({ id: uid('person'), name: name.trim() });
-  updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople }));
 }
 function removeTripPerson(tripId, personId){
   const trip = findTrip(tripId);
@@ -915,12 +922,12 @@ function removeTripPerson(tripId, personId){
     const idx = item.who.indexOf(personId);
     if (idx !== -1) item.who.splice(idx, 1);
   });
-  updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }));
 }
 function deleteTrip(id){
   STATE.trips = STATE.trips.filter(t => t.id !== id);
   if (UI.currentTripId === id){ UI.currentTripId = null; UI.view = 'trips'; }
-  deleteDoc(tripDoc(id)).catch(handleSaveError);
+  trackWrite(() => deleteDoc(tripDoc(id)));
 }
 function togglePacked(tripId, itemId, personId){
   const trip = findTrip(tripId);
@@ -928,7 +935,7 @@ function togglePacked(tripId, itemId, personId){
   trip.packed[itemId] = trip.packed[itemId] || {};
   trip.packed[itemId][personId] = !trip.packed[itemId][personId];
   const fieldPath = 'packed.' + itemId + '.' + personId;
-  updateDoc(tripDoc(tripId), { [fieldPath]: trip.packed[itemId][personId] }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { [fieldPath]: trip.packed[itemId][personId] }));
 }
 // Adds a reminder to THIS trip's own before-we-leave list only — it
 // won't appear on other trips and won't change the master list, since
@@ -937,7 +944,7 @@ function addTripBwl(tripId, name, who){
   const trip = findTrip(tripId);
   if (!trip || !name.trim()) return;
   trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : tripPeople(trip).map(p => p.id)});
-  updateDoc(tripDoc(tripId), { beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { beforeWeLeave: trip.beforeWeLeave }));
 }
 // Moves an item you're not ready to pack yet out of its category and
 // into this trip's own Before We Leave list — just for this trip, not
@@ -953,7 +960,7 @@ function moveTripItemToBwl(tripId, itemId){
   });
   if (!found) return;
   trip.beforeWeLeave.push({ id: found.id, name: found.name, who: found.who });
-  updateDoc(tripDoc(tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }));
 }
 // Reassigns who's packing this item for THIS trip only — the master
 // list (and every other trip) is untouched. Useful when you decide,
@@ -969,7 +976,7 @@ function toggleTripItemAssignee(tripId, itemId, personId){
   if (!item) return;
   const idx = item.who.indexOf(personId);
   if (idx === -1) item.who.push(personId); else item.who.splice(idx, 1);
-  updateDoc(tripDoc(tripId), { categories: trip.categories }).catch(handleSaveError);
+  trackWrite(() => updateDoc(tripDoc(tripId), { categories: trip.categories }));
 }
 function addItem(catId, name, who, location, tags){
   const cat = findCategory(catId);
@@ -1093,6 +1100,44 @@ function toggleBwlAssignee(itemId, personId){
 }
 
 /* ---------------------------------------------------------------------
+   SAVE STATUS — every Firestore write in this file goes through
+   trackWrite() so "did my change actually save?" is never just a
+   console.warn no one sees. Shows briefly as "Saving…" then "✓ Saved"
+   (auto-clears), or persists as a tap-to-retry error if the write
+   fails. lastFailedWrite remembers how to redo exactly that write —
+   each call site passes a closure (not a bare promise) precisely so
+   retry can re-run it, picking up whatever's current by then rather
+   than resending a frozen snapshot from the moment of the original tap.
+--------------------------------------------------------------------- */
+let SAVE_STATUS = 'idle'; // 'idle' | 'saving' | 'saved' | 'error'
+let saveStatusTimer = null;
+let lastFailedWrite = null;
+function trackWrite(makeWrite){
+  clearTimeout(saveStatusTimer);
+  SAVE_STATUS = 'saving';
+  render();
+  const p = makeWrite();
+  p.then(() => {
+    lastFailedWrite = null;
+    SAVE_STATUS = 'saved';
+    render();
+    saveStatusTimer = setTimeout(() => { SAVE_STATUS = 'idle'; render(); }, 2000);
+  }).catch(err => {
+    console.warn('Packing Pal: save failed', err);
+    lastFailedWrite = makeWrite;
+    SAVE_STATUS = 'error';
+    render();
+  });
+  return p;
+}
+function renderSaveStatus(){
+  if (SAVE_STATUS === 'saving') return '<span class="save-status saving">Saving…</span>';
+  if (SAVE_STATUS === 'saved') return '<span class="save-status saved">✓ Saved</span>';
+  if (SAVE_STATUS === 'error') return '<button type="button" class="save-status error" data-action="retry-save" title="Tap to retry">⚠ Save failed</button>';
+  return '';
+}
+
+/* ---------------------------------------------------------------------
    Saving the master list — batched with a short debounce so a burst of
    edits (typing a name, ticking several assignee chips) becomes one
    write, not one per keystroke/tap. Trips are never touched by this.
@@ -1101,15 +1146,12 @@ let masterSaveTimer = null;
 function scheduleMasterSave(){
   clearTimeout(masterSaveTimer);
   masterSaveTimer = setTimeout(() => {
-    setDoc(masterDoc(), STATE.master).catch(handleSaveError);
+    trackWrite(() => setDoc(masterDoc(), STATE.master));
   }, 800);
 }
 function flushMasterSaveNow(){
   clearTimeout(masterSaveTimer);
-  setDoc(masterDoc(), STATE.master).catch(handleSaveError);
-}
-function handleSaveError(err){
-  console.warn('Packing Pal: save failed', err);
+  trackWrite(() => setDoc(masterDoc(), STATE.master));
 }
 
 /* ---------------------------------------------------------------------
@@ -1213,7 +1255,7 @@ function renderOnboardingPeople(){
 
 function renderTopbar(){
   return '<div class="topbar">' +
-    '<div class="brand"><span class="brand-mark">Packing Pal</span></div>' +
+    '<div class="brand"><span class="brand-mark">Packing Pal</span>' + renderSaveStatus() + '</div>' +
     '<div class="topnav">' +
       '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
       '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
@@ -1758,6 +1800,9 @@ document.addEventListener('click', function(e){
         (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
           .then(() => { UI.inviteCopied = true; render(); setTimeout(() => { UI.inviteCopied = false; render(); }, 2000); })
           .catch(() => {}); }
+      break;
+    case 'retry-save':
+      if (lastFailedWrite) trackWrite(lastFailedWrite);
       break;
   }
 });
