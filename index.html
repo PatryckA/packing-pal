@@ -143,6 +143,7 @@ main{flex:1; padding:1rem 1rem 4rem;}
 }
 .category-head h3{font-size:0.98rem; letter-spacing:0.01em;}
 .category-count{font-size:0.72rem; color:var(--ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap;}
+.category-count.done{color:var(--done); font-weight:800;}
 .chev{transition:transform 150ms ease; color:var(--ink-soft); flex:none;}
 .chev.collapsed{transform:rotate(-90deg);}
 .item-list{list-style:none; margin:0; padding:0;}
@@ -587,7 +588,13 @@ function saveUISnapshot(){
   } catch(e){}
 }
 let armedDeletes = new Set();
-let collapsedCats = new Set();
+// Whether a pack-screen category/location/before-we-leave card is
+// collapsed. A card with no entry here just follows the automatic rule
+// (collapsed once everything visible in it is packed, open otherwise);
+// an entry means the person explicitly clicked the chevron, which always
+// wins over the automatic rule until they click it again. See
+// isFullyPacked() and the 'toggle-collapse' click handler.
+let collapsedOverrides = new Map();
 let editingAssignees = new Set();
 let offlineMode = false;
 
@@ -1502,12 +1509,12 @@ function renderPack(){
       const locId = (item.location && groups[item.location]) ? item.location : '__none';
       groups[locId].push(item);
     });
-    getLocations().forEach(l => { html += renderPackGroup('loc-' + l.id, l.name, groups[l.id], trip, filter); });
-    if (groups['__none'].length) html += renderPackGroup('loc-__none', 'Unsorted', groups['__none'], trip, filter);
+    let locGroups = getLocations().map(l => ({ id: 'loc-' + l.id, name: l.name, items: groups[l.id] }));
+    if (groups['__none'].length) locGroups.push({ id: 'loc-__none', name: 'Unsorted', items: groups['__none'] });
+    sortGroupsDoneToBottom(locGroups, trip, filter).forEach(g => { html += renderPackGroup(g.id, g.name, g.items, trip, filter); });
   } else {
-    trip.categories.forEach(cat => {
-      html += renderPackGroup(cat.id, cat.name, cat.items, trip, filter);
-    });
+    const catGroups = trip.categories.map(cat => ({ id: cat.id, name: cat.name, items: cat.items }));
+    sortGroupsDoneToBottom(catGroups, trip, filter).forEach(g => { html += renderPackGroup(g.id, g.name, g.items, trip, filter); });
   }
 
   // On "All", still hide anything nobody's assigned to — e.g. an item
@@ -1518,10 +1525,11 @@ function renderPack(){
   let bwlItems = filter === 'all' ? trip.beforeWeLeave.filter(i => i.who.length > 0) : trip.beforeWeLeave.filter(i => i.who.includes(filter));
   bwlItems = sortPackItems(bwlItems, trip, filter);
   const bwlProg = computeProgress(bwlItems, trip.packed, filter);
-  const bwlCollapsed = collapsedCats.has('__bwl');
+  const bwlDone = isFullyPacked(bwlProg);
+  const bwlCollapsed = collapsedOverrides.has('__bwl') ? collapsedOverrides.get('__bwl') : bwlDone;
   html += '<section class="category-card bwl-card"><div class="category-head" data-action="toggle-collapse" data-cat="__bwl">' +
     '<h3><span class="bwl-label">Before we leave</span>Last checks at home</h3>' +
-    '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
+    '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count' + (bwlDone?' done':'') + '">' + bwlProg.done + '/' + bwlProg.total + '</span>' +
     chevSvg(bwlCollapsed) + '</span></div>';
   html += '<ul class="item-list' + (bwlCollapsed?' collapsed':'') + '">';
   bwlItems.forEach(item => { html += renderPackRow(trip, item, filter, true); });
@@ -1536,6 +1544,26 @@ function renderPack(){
   html += '</section>';
   return html;
 }
+// A group (category or location) counts as "fully packed" once every
+// item visible in it is packed — same all-done check used to decide
+// whether it should auto-collapse and sink to the bottom of the screen.
+function isFullyPacked(prog){
+  return prog.total > 0 && prog.done === prog.total;
+}
+// Fully-packed categories/locations sink below the ones still in
+// progress (stable within each group, same tie-break pattern as
+// sortPackItems) — mirrors how individual items already sink to the
+// bottom of their own list once packed, one level up.
+function sortGroupsDoneToBottom(groups, trip, filter){
+  return groups
+    .map((g, idx) => {
+      const visible = filter === 'all' ? g.items.filter(i => i.who.length > 0) : g.items.filter(i => i.who.includes(filter));
+      const done = visible.length > 0 && isFullyPacked(computeProgress(visible, trip.packed, filter));
+      return { g, idx, done };
+    })
+    .sort((a, b) => (a.done - b.done) || (a.idx - b.idx))
+    .map(x => x.g);
+}
 // Shared renderer for one category-card section, used both for
 // category-mode groups and location-mode groups — same filtering,
 // sort-to-bottom-when-packed, and collapse behaviour either way.
@@ -1547,10 +1575,14 @@ function renderPackGroup(groupId, groupName, items, trip, filter){
   if (visibleItems.length === 0) return '';
   visibleItems = sortPackItems(visibleItems, trip, filter);
   const prog = computeProgress(visibleItems, trip.packed, filter);
-  const collapsed = collapsedCats.has(groupId);
+  // Fully packed and never explicitly re-opened by the person packing —
+  // minimise it out of the way by default; an explicit click always wins
+  // over this until they click it again (see 'toggle-collapse' below).
+  const done = isFullyPacked(prog);
+  const collapsed = collapsedOverrides.has(groupId) ? collapsedOverrides.get(groupId) : done;
   let html = '<section class="category-card"><div class="category-head" data-action="toggle-collapse" data-cat="' + groupId + '">' +
     '<h3>' + escapeHtml(groupName) + '</h3>' +
-    '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count">' + prog.done + '/' + prog.total + '</span>' +
+    '<span style="display:flex;align-items:center;gap:0.5rem;"><span class="category-count' + (done?' done':'') + '">' + prog.done + '/' + prog.total + '</span>' +
     chevSvg(collapsed) + '</span></div>';
   html += '<ul class="item-list' + (collapsed?' collapsed':'') + '">';
   visibleItems.forEach(item => { html += renderPackRow(trip, item, filter); });
@@ -1871,7 +1903,11 @@ document.addEventListener('click', function(e){
     case 'set-filter': UI.packFilter = el.dataset.person; saveUISnapshot(); render(); break;
     case 'set-packsort': UI.packSort = el.dataset.sort; saveUISnapshot(); render(); break;
     case 'toggle-collapse':
-      { const c = el.dataset.cat; if (collapsedCats.has(c)) collapsedCats.delete(c); else collapsedCats.add(c); render(); }
+      // Flip whatever's currently shown, rather than a fixed default —
+      // works the same whether this card got here by the person's own
+      // earlier click or by auto-collapsing once everything in it was
+      // packed (see isFullyPacked()/collapsedOverrides above).
+      { const c = el.dataset.cat; const chev = el.querySelector('.chev'); const nowCollapsed = !!(chev && chev.classList.contains('collapsed')); collapsedOverrides.set(c, !nowCollapsed); render(); }
       break;
     case 'toggle-chip':
       togglePacked(UI.currentTripId, el.dataset.item, el.dataset.person);
