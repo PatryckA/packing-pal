@@ -609,37 +609,48 @@ let tripsLoaded = false;
 --------------------------------------------------------------------- */
 let AUTH = { user: null, resolved: false };
 let HOUSEHOLD = { id: null, name: '', resolved: false, members: [], membersLoaded: false };
-// A ?join=<householdId> invite link, read once at startup and stripped
-// from the URL so refreshing doesn't keep re-triggering the prompt. Also
-// stashed in sessionStorage: signIn() falls back to signInWithRedirect()
-// when a popup can't be used (blocked, mobile, an in-app browser like a
-// chat app's link preview) — that's a full top-level navigation away to
-// Google and back, which reloads this page from scratch and drops both
-// this in-memory variable AND the now-already-stripped query string. The
-// sessionStorage copy is what survives that round trip so the person
-// actually lands on "join household" instead of silently falling through
-// to "set up your own household".
+// A ?join=<householdId> invite link, read at startup and on every
+// render. Deliberately left IN the URL until the join is actually
+// resolved (joined, declined, found invalid, or the account turns out to
+// already belong to a household) — see clearPendingJoin() below for
+// where it's finally stripped.
+//
+// It used to be read once into a plain variable and stripped from the
+// URL immediately, on the theory that refreshing shouldn't keep
+// re-showing the prompt. That broke signInWithRedirect(): signIn() falls
+// back to it whenever a popup can't be used (blocked, most mobile
+// browsers, an in-app browser opened from a chat app's link preview) —
+// that's a full top-level navigation away to Google and back, which
+// reloads this page from scratch. A first attempt at fixing that stashed
+// the id in sessionStorage instead, but that still isn't enough for
+// every real device: some in-app/embedded browsers run navigations in a
+// storage-restricted or ephemeral mode where sessionStorage writes
+// silently no-op, and some hand the Google sign-in screen off to a
+// genuinely different browser/app entirely, which never shares that
+// tab's storage in the first place.
+//
+// The one thing that reliably survives ALL of those, because it's what
+// Firebase's redirect flow itself round-trips through, is the URL: it
+// navigates to Google and back to the exact page URL sign-in was started
+// from. So the fix is simply to not remove ?join= from that URL until
+// we're done with it — reading it fresh from location.search each time
+// needs no storage API at all.
 let pendingJoinId = null;
+function readPendingJoinFromUrl(){
+  try { return new URLSearchParams(location.search).get('join') || null; }
+  catch(e){ return null; }
+}
 function clearPendingJoin(){
   pendingJoinId = null;
-  try { sessionStorage.removeItem('packingpal-pending-join'); } catch(e){}
-}
-(function readJoinLink(){
   try {
     const params = new URLSearchParams(location.search);
-    const id = params.get('join');
-    if (id){
-      pendingJoinId = id;
-      try { sessionStorage.setItem('packingpal-pending-join', id); } catch(e){}
-      params.delete('join');
-      const qs = params.toString();
-      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
-    } else {
-      const saved = sessionStorage.getItem('packingpal-pending-join');
-      if (saved) pendingJoinId = saved;
-    }
+    if (!params.has('join')) return;
+    params.delete('join');
+    const qs = params.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   } catch(e){}
-})();
+}
+pendingJoinId = readPendingJoinFromUrl();
 
 // Failures here used to vanish silently (console.warn only) — someone
 // clicking "Continue with Google" with popups blocked, or before the
