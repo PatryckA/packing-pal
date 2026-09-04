@@ -427,26 +427,29 @@ function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? 
 const STARTER_TEMPLATE = {
   categories: [
     { name: 'Documents & Money', items: [
-      'Passport', ['Visa', ['international']], ['Vaccination certificates', ['international']],
-      ['Local currency', ['international']], 'Printed travel bookings & tickets', 'Wallet', 'Debit / credit cards'
+      'Passport', ['Driver’s licence / photo ID', ['roadtrip']], ['Visa', ['international']],
+      ['Vaccination certificates', ['international']], ['Local currency', ['international']],
+      'Printed travel bookings & tickets', 'Wallet', 'Debit / credit cards', ['Pen (for arrival forms)', ['international']]
     ] },
     { name: 'Clothing', items: [
       'Underwear', 'Socks', 'Pyjamas', 'T-shirts', 'Casual tops',
       ['Business shirt', ['work','formal']], 'Jumper / sweater', ['Jacket', ['cold']], ['Hoodie / puffer jacket', ['cold']],
-      'Jeans / trousers', 'Shorts', 'Belt', ['Tights', ['cold']], 'Dress', ['Coat', ['cold']],
-      ['Swimwear', ['swimming']], ['Rash vest', ['swimming']], ['Suit', ['work','formal']], ['Suit bag', ['work','formal']],
+      'Rain jacket / poncho', 'Jeans / trousers', 'Shorts', 'Belt', ['Tights', ['cold']], 'Dress', ['Coat', ['cold']],
+      ['Swimwear', ['swimming']], ['Rash vest', ['swimming']], ['Beach / pool towel', ['swimming']],
+      ['Suit', ['work','formal']], ['Suit bag', ['work','formal']],
       ['Tie', ['formal']], ['Dress shoes', ['work','formal']], 'Everyday shoes', 'Hat', 'Sunglasses',
       ['Gloves', ['cold']], ['Scarf', ['cold']], 'Sandals / thongs', 'Boots', ['Dress jewellery', ['formal']]
     ] },
     { name: 'Toiletries', items: [
       'Toothbrush', 'Toothpaste', 'Floss', 'Razor', 'Shaving gel', 'Deodorant', 'Hair product',
       'Comb / brush', 'Hair ties', 'Hairdryer / straightener', 'Shampoo & conditioner', 'Soap / body wash',
-      'Glasses / contact lenses', 'Make-up', 'Tweezers', 'Nail clippers', 'Perfume / cologne',
-      'Sunscreen', 'Moisturiser', 'Lip balm', ['Swimming goggles', ['swimming']]
+      'Glasses / contact lenses', 'Contact lens solution & case', 'Make-up', 'Tweezers', 'Nail clippers',
+      'Perfume / cologne', 'Sunscreen', 'Moisturiser', 'Lip balm', 'Feminine hygiene products',
+      ['Swimming goggles', ['swimming']]
     ] },
     { name: 'Health & Medicine', items: [
       'First aid kit', 'Pain relief (e.g. paracetamol)', 'Antihistamine', 'Decongestant',
-      'Sleep aid / melatonin', 'Sewing kit', 'Face masks', 'Earplugs', 'Prescription medications'
+      'Sleep aid / melatonin', 'Sleep mask', 'Sewing kit', 'Face masks', 'Earplugs', 'Prescription medications'
     ] },
     { name: 'Electronics', items: [
       ['Plug adapter', ['international']], 'Power board', 'Phone charger', 'Tablet charger',
@@ -463,7 +466,8 @@ const STARTER_TEMPLATE = {
     { name: 'Other', items: [
       'Dirty-washing bag', 'Reusable shopping bag', 'Multi-tool / pocket knife', 'Laundry detergent',
       'Insect repellent', 'Water bottles', ['Travel pillow', ['international']], 'Backpack',
-      'Rubbish bags', 'Folding chairs', 'Ziplock bags'
+      'Rubbish bags', 'Folding chairs', 'Ziplock bags', 'Umbrella', 'Luggage tag', 'Padlock',
+      'Spare house / car keys'
     ] }
   ],
   beforeWeLeave: [
