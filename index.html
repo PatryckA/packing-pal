@@ -418,21 +418,80 @@ function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? 
    — addStarterTemplate() ADDS these on top of whatever's already there
    rather than replacing it, so it's always safe to click.
 --------------------------------------------------------------------- */
+// Each item is a plain name, a [name, tags] pair, or a [name, tags,
+// location] triple — tags use the same condition ids as CONDITIONS
+// above (e.g. a suit tagged both 'work' and 'formal'), and an item's
+// location only needs stating when it differs from its category's own
+// default (see `location` on each category below); leave tags [] when
+// only overriding location. Category and item lists here are generic —
+// genericized from a real household's actual list, with anything
+// occasion-specific (e.g. a recurring dance-competition kit) left out,
+// since a starter template should suit anyone. Locations use the same
+// generic set as DEFAULT_LOCATIONS above.
 const STARTER_TEMPLATE = {
   categories: [
-    { name: 'Clothes', items: ['T-shirts', 'Underwear', 'Socks', 'Pyjamas', 'Comfortable shoes'] },
-    { name: 'Toiletries', items: ['Toothbrush & toothpaste', 'Deodorant', 'Shampoo & conditioner', 'Medications'] },
-    { name: 'Documents & money', items: ['ID / passport', 'Tickets & confirmations', 'Wallet & cards'] },
-    { name: 'Electronics', items: ['Phone charger', 'Headphones', 'Camera'] }
+    { name: 'Documents & Money', location: 'office', items: [
+      'Passport', ['Driver’s licence / photo ID', ['roadtrip']], ['Visa', ['international']],
+      ['Vaccination certificates', ['international']], ['Local currency', ['international']],
+      'Printed travel bookings & tickets', 'Wallet', 'Debit / credit cards', ['Pen (for arrival forms)', ['international']]
+    ] },
+    { name: 'Clothing', location: 'bedroom', items: [
+      'Underwear', 'Socks', 'Pyjamas', 'T-shirts', 'Casual tops',
+      ['Business shirt', ['work','formal']], 'Jumper / sweater', ['Jacket', ['cold']], ['Hoodie / puffer jacket', ['cold']],
+      'Rain jacket / poncho', 'Jeans / trousers', 'Shorts', 'Belt', ['Tights', ['cold']], 'Dress', ['Coat', ['cold']],
+      ['Swimwear', ['swimming']], ['Rash vest', ['swimming']],
+      ['Suit', ['work','formal']], ['Suit bag', ['work','formal']],
+      ['Tie', ['formal']], ['Dress shoes', ['work','formal']], 'Everyday shoes', 'Hat', 'Sunglasses',
+      ['Gloves', ['cold']], ['Scarf', ['cold']], 'Sandals / thongs', 'Boots', ['Dress jewellery', ['formal']]
+    ] },
+    { name: 'Toiletries', location: 'bathroom', items: [
+      'Toothbrush', 'Toothpaste', 'Floss', 'Razor', 'Shaving gel', 'Deodorant', 'Hair product',
+      'Comb / brush', 'Hair ties', 'Hairdryer / straightener', 'Shampoo & conditioner', 'Soap / body wash',
+      'Glasses / contact lenses', 'Contact lens solution & case', 'Make-up', 'Tweezers', 'Nail clippers',
+      'Perfume / cologne', 'Sunscreen', 'Moisturiser', 'Lip balm', 'Feminine hygiene products',
+      ['Swimming goggles', ['swimming']]
+    ] },
+    { name: 'Health & Medicine', location: 'bathroom', items: [
+      ['First aid kit', [], 'linen'], 'Pain relief (e.g. paracetamol)', 'Antihistamine', 'Decongestant',
+      'Sleep aid / melatonin', 'Sleep mask', 'Face masks', 'Earplugs', 'Prescription medications'
+    ] },
+    { name: 'Electronics', location: 'office', items: [
+      ['Plug adapter', ['international']], 'Power board', 'Phone charger', 'Tablet charger',
+      'Smartwatch charger', 'USB cables', 'Portable battery pack', 'Tablet', 'Headphones / earbuds',
+      'Handheld game console', 'Laptop & charger', 'Speaker', 'Camera'
+    ] },
+    { name: 'Kids’ Bag', location: 'downstairs', items: [
+      'Books', 'Pencil case', 'Homework / reading', 'Kids’ water bottle', 'Snacks', 'Toys / games'
+    ] },
+    { name: 'Pet Supplies', location: 'downstairs', items: [
+      'Pet food', 'Treats', 'Pet bed', 'Travel mat', 'Toys', 'Leash', 'Poo bags', 'Grooming supplies',
+      'Blanket', 'Food & water bowls'
+    ] },
+    { name: 'Other', location: 'downstairs', items: [
+      'Dirty-washing bag', 'Reusable shopping bag', ['Multi-tool / pocket knife', [], 'garage'],
+      'Laundry detergent', 'Insect repellent', 'Water bottles', ['Travel pillow', ['international'], 'bedroom'],
+      'Backpack', 'Rubbish bags', ['Folding chairs', [], 'garage'], 'Ziplock bags', 'Umbrella',
+      ['Luggage tag', [], 'office'], ['Padlock', [], 'garage'], ['Spare house / car keys', [], 'office'],
+      'Board games', ['Sewing kit', [], 'linen'], ['Beach / pool towel', ['swimming'], 'linen'],
+      ['Bedding / sheets', [], 'linen']
+    ] }
   ],
-  beforeWeLeave: ['Lock the doors', 'Turn off appliances', 'Take out the rubbish']
+  beforeWeLeave: [
+    'Empty the fridge & take out the rubbish', 'Turn off small appliances', 'Turn off the heater / AC',
+    'Lock all doors & windows', 'Bring in washing from the line', 'Set the water heater to holiday mode',
+    'Pause mail / deliveries', 'Arrange for someone to check the house'
+  ]
 };
 function addStarterTemplate(){
   const who = getPeople().map(p => p.id);
+  const buildItem = (entry, catLocation) => {
+    const [name, tags, location] = Array.isArray(entry) ? entry : [entry, []];
+    return { id: uid('item'), name, who: who.slice(), location: location || catLocation || '', tags: (tags || []).slice() };
+  };
   STARTER_TEMPLATE.categories.forEach(cat => {
     STATE.master.categories.push({
       id: uid('cat'), name: cat.name,
-      items: cat.items.map(name => ({ id: uid('item'), name, who: who.slice(), location: '', tags: [] }))
+      items: cat.items.map(entry => buildItem(entry, cat.location))
     });
   });
   STARTER_TEMPLATE.beforeWeLeave.forEach(name => {
