@@ -204,6 +204,15 @@ main{flex:1; padding:1rem 1rem 4rem;}
 .iconbtn:hover{border-color:var(--critical); color:var(--critical);}
 .iconbtn.armed{background:var(--critical); color:#fff; border-color:var(--critical); font-size:0.68rem; width:auto; padding:0 0.5rem;}
 .iconbtn.editing{background:var(--accent); color:var(--accent-contrast); border-color:var(--accent);}
+/* Pack-row controls (move to before-we-leave, reassign) sit next to the
+   checkboxes people are actually tapping over and over — keep them out
+   of the way visually (no border/fill at rest) without shrinking their
+   tap target, and bring them back to full strength on hover/focus/while
+   actively in use so they're never actually hard to find. */
+.iconbtn.subtle{background:none; border-color:transparent; opacity:0.5;}
+.iconbtn.subtle:hover{background:var(--surface); border-color:var(--critical); opacity:1;}
+.iconbtn.subtle:focus-visible{background:var(--surface); border-color:var(--line); opacity:1;}
+.iconbtn.subtle.editing{opacity:1; border-color:var(--accent);}
 .manage-row{
   display:flex; align-items:center; gap:0.55rem; padding:0.55rem 0; border-top:1px solid var(--line);
 }
@@ -1552,13 +1561,13 @@ function sortPackItems(items, trip, filter){
     .map(x => x.item);
 }
 function moveTripBwlButton(trip, itemId){
-  return '<button class="iconbtn" data-action="move-trip-item-to-bwl" data-trip="' + trip.id + '" data-item="' + itemId + '" title="Not ready to pack — move to before we leave">' + clockSvg() + '</button>';
+  return '<button class="iconbtn subtle" data-action="move-trip-item-to-bwl" data-trip="' + trip.id + '" data-item="' + itemId + '" title="Not ready to pack — move to before we leave">' + clockSvg() + '</button>';
 }
 function clockSvg(){
   return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.3L10.4 9.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function editAssigneesButton(itemId, active){
-  return '<button class="iconbtn' + (active?' editing':'') + '" data-action="toggle-edit-assignees" data-item="' + itemId + '" title="' + (active ? 'Done' : 'Reassign who packs this, just for this trip') + '">' +
+  return '<button class="iconbtn subtle' + (active?' editing':'') + '" data-action="toggle-edit-assignees" data-item="' + itemId + '" title="' + (active ? 'Done' : 'Reassign who packs this, just for this trip') + '">' +
     (active ? checkSvg() : pencilSvg()) + '</button>';
 }
 function pencilSvg(){
