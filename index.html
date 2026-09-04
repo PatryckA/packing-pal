@@ -288,8 +288,9 @@ main{flex:1; padding:1rem 1rem 4rem;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-  collection, onSnapshot, writeBatch
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+  collection, onSnapshot, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
   getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult,
@@ -315,7 +316,21 @@ const firebaseConfig = {
   appId: "1:546025854309:web:bd07ec84af0b27426c3d8c"
 };
 const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
+// Persistent local cache so the app actually works offline (the offline
+// banner below promises this): reads come from the on-device cache when
+// there's no network, and queued writes sync automatically once back
+// online. Falls back to the plain in-memory client if the browser can't
+// support it (e.g. IndexedDB blocked in private browsing) rather than
+// breaking the app.
+let db;
+try {
+  db = initializeFirestore(firebaseApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+} catch (e) {
+  console.warn('Packing Pal: offline persistence unavailable, using in-memory cache', e);
+  db = getFirestore(firebaseApp);
+}
 const auth = getAuth(firebaseApp);
 
 /* ---------------------------------------------------------------------
@@ -904,9 +919,20 @@ function createTrip(name, conditions, people, guestNames){
 function addTripPerson(tripId, name){
   const trip = findTrip(tripId);
   if (!trip || !name.trim()) return;
+  const newPerson = { id: uid('person'), name: name.trim() };
   if (!trip.extraPeople) trip.extraPeople = [];
-  trip.extraPeople.push({ id: uid('person'), name: name.trim() });
-  trackWrite(() => updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople }));
+  trip.extraPeople.push(newPerson);
+  // Transaction (not updateDoc) so this only ever appends to whatever
+  // extraPeople looks like on the server right now — if someone else
+  // added or removed a guest between our last sync and this write, we
+  // don't stomp their change with our locally-stale copy of the array.
+  trackWrite(() => runTransaction(db, async (tx) => {
+    const ref = tripDoc(tripId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const extraPeople = (snap.data().extraPeople || []).concat([newPerson]);
+    tx.update(ref, { extraPeople });
+  }));
 }
 function removeTripPerson(tripId, personId){
   const trip = findTrip(tripId);
@@ -922,7 +948,24 @@ function removeTripPerson(tripId, personId){
     const idx = item.who.indexOf(personId);
     if (idx !== -1) item.who.splice(idx, 1);
   });
-  trackWrite(() => updateDoc(tripDoc(tripId), { extraPeople: trip.extraPeople, categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }));
+  // Re-derive the same removal against the server's current copy of
+  // categories/beforeWeLeave inside a transaction, instead of writing
+  // back our local (possibly stale) copies — so a concurrent edit to an
+  // unrelated item elsewhere in the trip isn't lost.
+  trackWrite(() => runTransaction(db, async (tx) => {
+    const ref = tripDoc(tripId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const stripPerson = (who) => (who || []).filter(p => p !== personId);
+    const extraPeople = (data.extraPeople || []).filter(p => p.id !== personId);
+    const categories = (data.categories || []).map(cat => ({
+      ...cat,
+      items: cat.items.map(item => ({ ...item, who: stripPerson(item.who) }))
+    }));
+    const beforeWeLeave = (data.beforeWeLeave || []).map(item => ({ ...item, who: stripPerson(item.who) }));
+    tx.update(ref, { extraPeople, categories, beforeWeLeave });
+  }));
 }
 function deleteTrip(id){
   STATE.trips = STATE.trips.filter(t => t.id !== id);
@@ -943,8 +986,17 @@ function togglePacked(tripId, itemId, personId){
 function addTripBwl(tripId, name, who){
   const trip = findTrip(tripId);
   if (!trip || !name.trim()) return;
-  trip.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : tripPeople(trip).map(p => p.id)});
-  trackWrite(() => updateDoc(tripDoc(tripId), { beforeWeLeave: trip.beforeWeLeave }));
+  const newItem = {id: uid('bwl'), name: name.trim(), who: who.length ? who : tripPeople(trip).map(p => p.id)};
+  trip.beforeWeLeave.push(newItem);
+  // Append against the server's current beforeWeLeave, not our local
+  // copy — same reasoning as addTripPerson above.
+  trackWrite(() => runTransaction(db, async (tx) => {
+    const ref = tripDoc(tripId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const beforeWeLeave = (snap.data().beforeWeLeave || []).concat([newItem]);
+    tx.update(ref, { beforeWeLeave });
+  }));
 }
 // Moves an item you're not ready to pack yet out of its category and
 // into this trip's own Before We Leave list — just for this trip, not
@@ -960,7 +1012,29 @@ function moveTripItemToBwl(tripId, itemId){
   });
   if (!found) return;
   trip.beforeWeLeave.push({ id: found.id, name: found.name, who: found.who });
-  trackWrite(() => updateDoc(tripDoc(tripId), { categories: trip.categories, beforeWeLeave: trip.beforeWeLeave }));
+  // Locate and remove the item on the server's current categories, in
+  // case someone else edited a different item in the meantime — then
+  // append it to the server's current beforeWeLeave. If someone else
+  // already moved/deleted this exact item first, there's nothing left
+  // to move and the transaction is a no-op.
+  trackWrite(() => runTransaction(db, async (tx) => {
+    const ref = tripDoc(tripId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let serverFound = null;
+    const categories = (data.categories || []).map(cat => ({
+      ...cat,
+      items: cat.items.filter(i => {
+        if (i.id === itemId){ serverFound = i; return false; }
+        return true;
+      })
+    }));
+    if (!serverFound) return;
+    const beforeWeLeave = (data.beforeWeLeave || [])
+      .concat([{ id: serverFound.id, name: serverFound.name, who: serverFound.who }]);
+    tx.update(ref, { categories, beforeWeLeave });
+  }));
 }
 // Reassigns who's packing this item for THIS trip only — the master
 // list (and every other trip) is untouched. Useful when you decide,
@@ -976,7 +1050,29 @@ function toggleTripItemAssignee(tripId, itemId, personId){
   if (!item) return;
   const idx = item.who.indexOf(personId);
   if (idx === -1) item.who.push(personId); else item.who.splice(idx, 1);
-  trackWrite(() => updateDoc(tripDoc(tripId), { categories: trip.categories }));
+  // Toggle against the server's current who[] for this item rather than
+  // writing back our whole local categories tree — a concurrent edit to
+  // a different item stays intact either way.
+  trackWrite(() => runTransaction(db, async (tx) => {
+    const ref = tripDoc(tripId);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let touched = false;
+    const categories = (data.categories || []).map(cat => ({
+      ...cat,
+      items: cat.items.map(i => {
+        if (i.id !== itemId) return i;
+        touched = true;
+        const who = (i.who || []).slice();
+        const wIdx = who.indexOf(personId);
+        if (wIdx === -1) who.push(personId); else who.splice(wIdx, 1);
+        return { ...i, who };
+      })
+    }));
+    if (!touched) return;
+    tx.update(ref, { categories });
+  }));
 }
 function addItem(catId, name, who, location, tags){
   const cat = findCategory(catId);
