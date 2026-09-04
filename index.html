@@ -1317,7 +1317,12 @@ function renderPack(){
     });
   }
 
-  let bwlItems = filter === 'all' ? trip.beforeWeLeave : trip.beforeWeLeave.filter(i => i.who.includes(filter));
+  // On "All", still hide anything nobody's assigned to — e.g. an item
+  // that was only ever assigned to someone not travelling on this trip
+  // ends up with an empty who[] once the trip's roster trims it, and
+  // showing it would just clutter the list with something nobody's
+  // ever going to pack.
+  let bwlItems = filter === 'all' ? trip.beforeWeLeave.filter(i => i.who.length > 0) : trip.beforeWeLeave.filter(i => i.who.includes(filter));
   bwlItems = sortPackItems(bwlItems, trip, filter);
   const bwlProg = computeProgress(bwlItems, trip.packed, filter);
   const bwlCollapsed = collapsedCats.has('__bwl');
@@ -1342,7 +1347,10 @@ function renderPack(){
 // category-mode groups and location-mode groups — same filtering,
 // sort-to-bottom-when-packed, and collapse behaviour either way.
 function renderPackGroup(groupId, groupName, items, trip, filter){
-  let visibleItems = filter === 'all' ? items : items.filter(i => i.who.includes(filter));
+  // Same reasoning as bwlItems above — "All" still hides items with an
+  // empty who[] (nobody assigned, typically because everyone they were
+  // assigned to got trimmed off this trip's roster).
+  let visibleItems = filter === 'all' ? items.filter(i => i.who.length > 0) : items.filter(i => i.who.includes(filter));
   if (visibleItems.length === 0) return '';
   visibleItems = sortPackItems(visibleItems, trip, filter);
   const prog = computeProgress(visibleItems, trip.packed, filter);
