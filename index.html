@@ -218,6 +218,15 @@ main{flex:1; padding:1rem 1rem 4rem;}
   display:flex; align-items:center; gap:0.55rem; padding:0.55rem 0; border-top:1px solid var(--line);
 }
 .manage-row:first-of-type{border-top:none;}
+.move-btns{display:flex; flex-direction:column; gap:1px; flex:none;}
+.move-btn{
+  width:22px; height:15px; border:1px solid var(--line); background:var(--surface); color:var(--ink-soft);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; border-radius:4px;
+}
+.move-btns .move-btn:first-child{border-bottom-left-radius:0; border-bottom-right-radius:0;}
+.move-btns .move-btn:last-child{border-top-left-radius:0; border-top-right-radius:0; margin-top:-1px;}
+.move-btn:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+.move-btn:disabled{opacity:0.25; cursor:default;}
 .manage-name-input{
   flex:1; background:var(--surface); border:1px solid var(--line); border-radius:7px; padding:0.45rem 0.6rem;
   color:var(--ink); font-size:0.9rem; min-width:0;
@@ -1165,6 +1174,22 @@ function deleteItem(catId, itemId){
   cat.items = cat.items.filter(i => i.id !== itemId);
   scheduleMasterSave();
 }
+// Swaps an item with its neighbour one place up (dir -1) or down (dir
+// +1) within its category. This is the order a brand-new trip's pack
+// screen falls back to once everything's equally (un)packed — see
+// sortPackItems()'s idx tie-break — so reordering here is how you decide
+// what a fresh trip lists first within a category.
+function moveItem(catId, itemId, dir){
+  const cat = findCategory(catId);
+  if (!cat) return;
+  const idx = cat.items.findIndex(i => i.id === itemId);
+  const swapIdx = idx + dir;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= cat.items.length) return;
+  const tmp = cat.items[idx];
+  cat.items[idx] = cat.items[swapIdx];
+  cat.items[swapIdx] = tmp;
+  scheduleMasterSave();
+}
 // Reclassifies a packable item as a before-we-leave reminder — removes
 // it from its category (location no longer applies) and keeps its name
 // and who-assignment. This only shapes future trips, same as any other
@@ -1232,6 +1257,17 @@ function addBwl(name, who){
 }
 function deleteBwl(itemId){
   STATE.master.beforeWeLeave = STATE.master.beforeWeLeave.filter(i => i.id !== itemId);
+  scheduleMasterSave();
+}
+// Same reordering as moveItem(), for the before-we-leave list.
+function moveBwlItem(itemId, dir){
+  const items = STATE.master.beforeWeLeave;
+  const idx = items.findIndex(i => i.id === itemId);
+  const swapIdx = idx + dir;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= items.length) return;
+  const tmp = items[idx];
+  items[idx] = items[swapIdx];
+  items[swapIdx] = tmp;
   scheduleMasterSave();
 }
 function toggleBwlAssignee(itemId, personId){
@@ -1782,12 +1818,36 @@ function moveToBwlButton(catId, itemId){
 function moveToBwlSvg(){
   return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 3.5h7M2 8h4.5M2 12.5h4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10 9.3l1.6 1.6L14.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
+function upTriSvg(){
+  return '<svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2l4 5H1z"/></svg>';
+}
+function downTriSvg(){
+  return '<svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><path d="M5 8L1 3h8z"/></svg>';
+}
+// Reorders a master-list item within its own category/before-we-leave
+// list — this is what decides the order items appear in on a new trip's
+// pack screen (an existing trip already has its own copy, same as any
+// other master-list edit). idx/total let the caller grey out whichever
+// arrow would be a no-op at either end of the list.
+function moveItemButtons(catId, itemId, idx, total){
+  return '<span class="move-btns">' +
+    '<button type="button" class="move-btn" data-action="move-item-up" data-cat="' + catId + '" data-item="' + itemId + '" title="Move up in the list"' + (idx===0?' disabled':'') + '>' + upTriSvg() + '</button>' +
+    '<button type="button" class="move-btn" data-action="move-item-down" data-cat="' + catId + '" data-item="' + itemId + '" title="Move down in the list"' + (idx===total-1?' disabled':'') + '>' + downTriSvg() + '</button>' +
+  '</span>';
+}
+function moveBwlButtons(itemId, idx, total){
+  return '<span class="move-btns">' +
+    '<button type="button" class="move-btn" data-action="move-before-up" data-item="' + itemId + '" title="Move up in the list"' + (idx===0?' disabled':'') + '>' + upTriSvg() + '</button>' +
+    '<button type="button" class="move-btn" data-action="move-before-down" data-item="' + itemId + '" title="Move down in the list"' + (idx===total-1?' disabled':'') + '>' + downTriSvg() + '</button>' +
+  '</span>';
+}
 function renderManageCategory(cat){
   let html = '<div class="manage-head"><input class="cat-name-input" type="text" value="' + escapeHtml(cat.name) + '" data-field="cat-name" data-cat="' + cat.id + '">' +
     deleteButton('delete-category', cat.id, 'Delete category') + '</div>';
   if (cat.items.length === 0) html += '<p class="manage-empty">No items yet — add one below.</p>';
-  cat.items.forEach(item => {
-    html += '<div class="manage-row has-location"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="item-name" data-cat="' + cat.id + '" data-item="' + item.id + '">';
+  cat.items.forEach((item, idx) => {
+    html += '<div class="manage-row has-location">' + moveItemButtons(cat.id, item.id, idx, cat.items.length) +
+      '<input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="item-name" data-cat="' + cat.id + '" data-item="' + item.id + '">';
     html += '<span class="who-toggle">';
     { const list = getPeople();
     list.forEach(p => {
@@ -1837,8 +1897,9 @@ function renderManageBwl(){
   const items = STATE.master.beforeWeLeave;
   let html = '<div class="manage-head"><h2 style="font-size:1.3rem;">Before we leave</h2></div>';
   if (items.length === 0) html += '<p class="manage-empty">No reminders yet — add one below.</p>';
-  items.forEach(item => {
-    html += '<div class="manage-row"><input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="before-name" data-item="' + item.id + '">';
+  items.forEach((item, idx) => {
+    html += '<div class="manage-row">' + moveBwlButtons(item.id, idx, items.length) +
+      '<input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="before-name" data-item="' + item.id + '">';
     html += '<span class="who-toggle">';
     { const list = getPeople();
     list.forEach(p => {
@@ -1944,6 +2005,10 @@ document.addEventListener('click', function(e){
       moveItemToBwl(el.dataset.cat, el.dataset.item);
       render();
       break;
+    case 'move-item-up': moveItem(el.dataset.cat, el.dataset.item, -1); render(); break;
+    case 'move-item-down': moveItem(el.dataset.cat, el.dataset.item, 1); render(); break;
+    case 'move-before-up': moveBwlItem(el.dataset.item, -1); render(); break;
+    case 'move-before-down': moveBwlItem(el.dataset.item, 1); render(); break;
     case 'sign-in': signIn(); break;
     case 'sign-out':
       stopHouseholdListeners();
