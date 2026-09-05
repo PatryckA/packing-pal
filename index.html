@@ -222,6 +222,11 @@ main{flex:1; padding:1rem 1rem 4rem;}
   border-bottom:2px solid transparent; color:var(--ink); flex:1; padding:0.1rem 0;
 }
 .cat-name-input:hover,.cat-name-input:focus{border-bottom-color:var(--line);}
+.household-name-input{
+  font-family:var(--font-display); font-size:1.5rem; font-weight:700; background:none; border:none;
+  border-bottom:2px solid transparent; color:var(--ink); width:100%; padding:0.1rem 0; margin-bottom:0.9rem;
+}
+.household-name-input:hover,.household-name-input:focus{border-bottom-color:var(--line);}
 .iconbtn{
   background:var(--surface); border:1px solid var(--line); color:var(--ink-soft); border-radius:7px;
   width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
@@ -882,41 +887,6 @@ async function loadHouseholdMembers(){
 function inviteLink(){
   return location.origin + location.pathname + '?join=' + encodeURIComponent(HOUSEHOLD.id || '');
 }
-// One-time import of this Firebase project's pre-account data (the
-// original single shared household) into a brand new household. Only
-// meaningful for whoever's reclaiming that old data; harmless no-op
-// (empty categories) for anyone else since it just copies what's there.
-async function migrateLegacyData(){
-  if (!HOUSEHOLD.id) return;
-  UI.migrating = true; render();
-  try {
-    const legacyMasterSnap = await getDoc(doc(db, 'state', 'master'));
-    const legacyTripsSnap = await getDocs(collection(db, 'trips'));
-    const batch = writeBatch(db);
-    if (legacyMasterSnap.exists()){
-      const legacyMaster = legacyMasterSnap.data();
-      // The legacy list predates named people entirely — its who[]
-      // arrays reference the ids 'pat'/'wendy'/'maddy' directly, so
-      // seeding those same ids as people keeps every assignment working;
-      // rename or remove them afterwards from the People tab as you like.
-      legacyMaster.people = [
-        {id:'pat', name:'Pat'}, {id:'wendy', name:'Wendy'}, {id:'maddy', name:'Maddy'}
-      ];
-      batch.set(doc(db, 'households', HOUSEHOLD.id, 'state', 'master'), legacyMaster);
-    }
-    legacyTripsSnap.docs.forEach(d => {
-      batch.set(doc(db, 'households', HOUSEHOLD.id, 'trips', d.id), d.data());
-    });
-    await batch.commit();
-  } catch(err){
-    console.warn('Packing Pal: legacy import failed', err);
-    UI.onboardInviteError = 'Import failed — try again in a moment.';
-  }
-  UI.migrating = false;
-  UI.confirmingImport = false;
-  render();
-}
-
 /* ---------------------------------------------------------------------
    Helpers
 --------------------------------------------------------------------- */
@@ -1356,6 +1326,19 @@ function flushMasterSaveNow(){
   clearTimeout(masterSaveTimer);
   trackWrite(() => setDoc(masterDoc(), STATE.master));
 }
+// Same debounce, for the household's own name (households/{id}.name) —
+// a separate document from the master list, so it gets its own save
+// path rather than riding along with scheduleMasterSave().
+let householdNameSaveTimer = null;
+function scheduleHouseholdNameSave(){
+  clearTimeout(householdNameSaveTimer);
+  householdNameSaveTimer = setTimeout(flushHouseholdNameSaveNow, 800);
+}
+function flushHouseholdNameSaveNow(){
+  clearTimeout(householdNameSaveTimer);
+  if (!HOUSEHOLD.id) return;
+  trackWrite(() => updateDoc(doc(db, 'households', HOUSEHOLD.id), { name: HOUSEHOLD.name }));
+}
 
 /* ---------------------------------------------------------------------
    Rendering
@@ -1447,10 +1430,6 @@ function renderOnboardingPeople(){
       '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Starting from a blank list? Load a generic template (clothes, toiletries, documents…) to edit instead of typing everything from scratch.</p>' +
       '<button type="button" class="btn ghost" data-action="add-starter-template">Load starter template</button>' +
     '</div>';
-    html += '<div style="border-top:1px dashed var(--line);padding-top:0.75rem;margin-top:0.75rem;">' +
-      '<p style="color:var(--ink-soft);font-size:0.8rem;margin:0 0 0.5rem;">Used the original shared Packing Pal before? You can bring that list over instead.</p>' +
-      '<button type="button" class="btn ghost" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating ? 'Importing…' : 'Import that list') + '</button>' +
-    '</div>';
   }
   html += '</div>';
   return html;
@@ -1462,7 +1441,6 @@ function renderTopbar(){
     '<div class="topnav">' +
       '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
       '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
-      '<button class="navbtn' + (UI.view==='household'?' active':'') + '" data-action="go-household">Household</button>' +
     '</div>' + renderAccountMenu() + '</div>';
 }
 // A small always-visible way to see who's signed in and sign out (or
@@ -1814,7 +1792,7 @@ function renderPeopleList(){
   return html;
 }
 function renderHousehold(){
-  let html = '<h1 class="section-title">' + escapeHtml(HOUSEHOLD.name || 'Household') + '</h1>';
+  let html = '<input class="household-name-input" type="text" value="' + escapeHtml(HOUSEHOLD.name || '') + '" data-field="household-name" placeholder="Household name">';
   html += '<h2 style="font-size:1.05rem;margin:0 0 0.3rem;">Invite people</h2>';
   html += '<p class="empty-state" style="padding:0 0 0.6rem;text-align:left;">Share this link with someone you want to pack with — anyone who opens it can join and see everything here, so only send it to people you trust.</p>';
   html += '<div class="invite-box"><span style="flex:1;">' + escapeHtml(inviteLink()) + '</span>' +
@@ -1834,17 +1812,6 @@ function renderHousehold(){
     html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Starter template</h2>';
     html += '<p class="empty-state" style="padding:0;text-align:left;">Load a generic packing list (clothes, toiletries, documents…) to edit instead of starting from a blank Manage screen.</p>';
     html += '<button type="button" class="btn ghost" data-action="add-starter-template">Load starter template</button>';
-  }
-  html += '<h2 style="font-size:1.05rem;margin:1.3rem 0 0.3rem;">Import original list</h2>';
-  if (UI.confirmingImport){
-    html += '<p style="color:var(--critical);font-size:0.82rem;margin:0 0 0.5rem;">This replaces this household’s current categories, locations, and people with the original shared list — anything you’ve already added here will be lost. Are you sure?</p>';
-    html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
-      '<button type="button" class="btn" data-action="import-legacy-data"' + (UI.migrating?' disabled':'') + '>' + (UI.migrating?'Importing…':'Yes, replace my list') + '</button>' +
-      '<button type="button" class="btn ghost" data-action="cancel-import-legacy"' + (UI.migrating?' disabled':'') + '>Cancel</button>' +
-    '</div>';
-  } else {
-    html += '<p class="empty-state" style="padding:0;text-align:left;">Bring over the categories, locations, and people from the original pre-account Packing Pal list.</p>';
-    html += '<button type="button" class="btn ghost" data-action="confirm-import-legacy">Import original list</button>';
   }
   if (UI.onboardInviteError) html += '<p style="color:var(--critical);font-size:0.82rem;margin-top:0.5rem;">' + escapeHtml(UI.onboardInviteError) + '</p>';
   html += '<div style="margin-top:1.5rem;"><button type="button" class="btn ghost" data-action="sign-out">Sign out</button></div>';
@@ -2002,8 +1969,11 @@ document.addEventListener('click', function(e){
   switch(action){
     case 'go-trips':
       if (UI.view === 'manage') flushMasterSaveNow();
+      if (UI.view === 'household') flushHouseholdNameSaveNow();
       UI.view = 'trips'; saveUISnapshot(); render(); break;
-    case 'go-manage': UI.view = 'manage'; saveUISnapshot(); render(); break;
+    case 'go-manage':
+      if (UI.view === 'household') flushHouseholdNameSaveNow();
+      UI.view = 'manage'; saveUISnapshot(); render(); break;
     case 'show-new-trip': UI.addingTrip = true; render(); break;
     case 'hide-new-trip': UI.addingTrip = false; render(); break;
     case 'open-trip':
@@ -2079,14 +2049,7 @@ document.addEventListener('click', function(e){
       render();
       break;
     case 'finish-onboarding': UI.view = 'trips'; saveUISnapshot(); render(); break;
-    case 'import-legacy-data': migrateLegacyData(); break;
     case 'add-starter-template': addStarterTemplate(); render(); break;
-    case 'confirm-import-legacy':
-      UI.confirmingImport = true; UI.onboardInviteError = ''; render();
-      break;
-    case 'cancel-import-legacy':
-      UI.confirmingImport = false; render();
-      break;
     case 'go-household':
       UI.accountMenuOpen = false;
       UI.view = 'household'; HOUSEHOLD.membersLoaded = false; saveUISnapshot(); render();
@@ -2167,6 +2130,12 @@ document.addEventListener('input', function(e){
   } else if (field === 'person-name'){
     const p = getPeople().find(p => p.id === el.dataset.person);
     if (p) p.name = el.value;
+  } else if (field === 'household-name'){
+    // Its own doc (households/{id}), not part of STATE.master — save it
+    // separately rather than falling through to scheduleMasterSave().
+    HOUSEHOLD.name = el.value;
+    scheduleHouseholdNameSave();
+    return;
   }
   scheduleMasterSave();
 });
@@ -2245,10 +2214,13 @@ if (document.readyState === 'loading'){
   boot();
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && UI.view === 'manage') flushMasterSaveNow();
+  if (document.visibilityState !== 'hidden') return;
+  if (UI.view === 'manage') flushMasterSaveNow();
+  if (UI.view === 'household') flushHouseholdNameSaveNow();
 });
 addEventListener('pagehide', () => {
   if (UI.view === 'manage') flushMasterSaveNow();
+  if (UI.view === 'household') flushHouseholdNameSaveNow();
 });
 
 if ('serviceWorker' in navigator){
