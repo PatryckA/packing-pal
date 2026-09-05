@@ -1022,6 +1022,17 @@ function deleteTrip(id){
   if (UI.currentTripId === id){ UI.currentTripId = null; UI.view = 'trips'; }
   trackWrite(() => deleteDoc(tripDoc(id)));
 }
+// Manually moves a trip in/out of the collapsed "Past trips" section —
+// deliberately not tied to pack progress (100% packed usually just means
+// "ready", not "over"), so this is the person's own call, either
+// direction, made whenever they decide a trip is actually done with.
+// A single field, so a plain updateDoc is safe — no clobbering risk.
+function toggleArchiveTrip(tripId){
+  const trip = findTrip(tripId);
+  if (!trip) return;
+  trip.archivedAt = trip.archivedAt ? null : new Date().toISOString();
+  trackWrite(() => updateDoc(tripDoc(tripId), { archivedAt: trip.archivedAt }));
+}
 function togglePacked(tripId, itemId, personId){
   const trip = findTrip(tripId);
   if (!trip) return;
@@ -1467,22 +1478,29 @@ function renderAccountMenu(){
   return html;
 }
 
+function renderTripCard(trip){
+  const prog = computeProgress(allTripItems(trip), trip.packed, 'all');
+  const pct = prog.total ? Math.round((prog.done/prog.total)*100) : 0;
+  return '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' +
+    '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
+    '<span class="tdate">Created ' + fmtDate(trip.createdAt) + '</span>' +
+    '<span class="tprog"><span class="progress-bar"><span class="progress-fill" style="width:' + pct + '%"></span></span>' +
+    '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>' +
+    '</button>';
+}
 function renderTrips(){
   let html = '<h1 class="section-title">Your trips</h1>';
+  // Archived trips (see toggleArchiveTrip — a manual "I'm done with
+  // this one" action, not tied to pack progress: fully packed still
+  // means "ready for an upcoming trip", not "over") sit in their own
+  // collapsed section below instead of cluttering the main grid forever.
+  const activeTrips = STATE.trips.filter(t => !t.archivedAt);
+  const pastTrips = STATE.trips.filter(t => t.archivedAt);
   html += '<div class="trip-grid">';
-  if (STATE.trips.length === 0 && !UI.addingTrip){
+  if (activeTrips.length === 0 && !UI.addingTrip){
     html += '<div class="new-trip-card" data-action="show-new-trip">+ New trip</div>';
   } else {
-    STATE.trips.forEach(trip => {
-      const prog = computeProgress(allTripItems(trip), trip.packed, 'all');
-      const pct = prog.total ? Math.round((prog.done/prog.total)*100) : 0;
-      html += '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' +
-        '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
-        '<span class="tdate">Created ' + fmtDate(trip.createdAt) + '</span>' +
-        '<span class="tprog"><span class="progress-bar"><span class="progress-fill" style="width:' + pct + '%"></span></span>' +
-        '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>' +
-        '</button>';
-    });
+    activeTrips.forEach(trip => { html += renderTripCard(trip); });
     if (UI.addingTrip){
       html += '<form class="new-trip-form" data-action="create-trip">' +
         '<input type="text" name="name" placeholder="Trip name, e.g. NZ — Dec 2026" autofocus required>' +
@@ -1512,6 +1530,19 @@ function renderTrips(){
   if (STATE.trips.length === 0 && !UI.addingTrip){
     html += '<p class="empty-state">Every new trip starts with a full copy of your master list — you can hide or ignore anything that doesn’t apply this time, and edit the master list itself anytime from “Manage list”.</p>';
   }
+  if (pastTrips.length){
+    const open = !!UI.pastTripsOpen;
+    html += '<section class="category-card" style="margin-top:1rem;">' +
+      '<div class="category-head" data-action="toggle-past-trips">' +
+      '<h3>Past trips</h3><span style="display:flex;align-items:center;gap:0.5rem;">' +
+      '<span class="category-count">' + pastTrips.length + '</span>' + chevSvg(!open) + '</span></div>';
+    if (open){
+      html += '<div class="trip-grid" style="padding:0.9rem;">';
+      pastTrips.forEach(trip => { html += renderTripCard(trip); });
+      html += '</div>';
+    }
+    html += '</section>';
+  }
   return html;
 }
 function allTripItems(trip){
@@ -1526,8 +1557,9 @@ function renderPack(){
   let html = '<div class="pack-header">';
   html += '<button class="back-link" data-action="go-trips">← All trips</button>';
   html += '<div class="pack-title-row"><div><h1 class="trip-title">' + escapeHtml(trip.name) + '</h1>' +
-    '<div class="trip-created">Created ' + fmtDate(trip.createdAt) + '</div></div>' +
-    deleteButton('delete-trip', trip.id, 'Delete trip', 'Delete trip?') + '</div>';
+    '<div class="trip-created">Created ' + fmtDate(trip.createdAt) + (trip.archivedAt ? ' · Archived' : '') + '</div></div>' +
+    '<span style="display:flex;gap:0.4rem;flex:none;">' + archiveTripButton(trip) +
+    deleteButton('delete-trip', trip.id, 'Delete trip', 'Delete trip?') + '</span></div>';
   html += '</div>';
 
   html += '<div class="filter-row">';
@@ -1826,6 +1858,17 @@ function deleteButton(action, id, label, confirmText){
 function trashSvg(){
   return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M6 4V2.5h4V4M4.5 4l.6 9.2a1 1 0 001 .8h3.8a1 1 0 001-.8L11.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
+function archiveTripButton(trip){
+  const archived = !!trip.archivedAt;
+  return '<button class="iconbtn" data-action="toggle-archive-trip" data-trip="' + trip.id + '" title="' +
+    (archived ? 'Move back to current trips' : 'Archive this trip') + '">' + (archived ? unarchiveSvg() : archiveSvg()) + '</button>';
+}
+function archiveSvg(){
+  return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.3 9h3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+}
+function unarchiveSvg(){
+  return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 11.2V7.5M8 7.5L6 9.3M8 7.5l2 1.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
 function moveToBwlButton(catId, itemId){
   return '<button class="iconbtn" data-action="move-to-bwl" data-cat="' + catId + '" data-item="' + itemId + '" title="Move to before we leave">' + moveToBwlSvg() + '</button>';
 }
@@ -2029,6 +2072,8 @@ document.addEventListener('click', function(e){
     case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before': case 'delete-person':
       handleDelete(action, el.dataset.id);
       break;
+    case 'toggle-archive-trip': toggleArchiveTrip(el.dataset.trip); render(); break;
+    case 'toggle-past-trips': UI.pastTripsOpen = !UI.pastTripsOpen; render(); break;
     case 'move-to-bwl':
       moveItemToBwl(el.dataset.cat, el.dataset.item);
       render();
