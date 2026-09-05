@@ -73,6 +73,30 @@ a{color:inherit;}
 }
 .navbtn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-contrast);}
 .navbtn:hover{border-color:var(--accent);}
+.account-menu-wrap{position:relative; flex:none;}
+.account-btn{
+  width:32px; height:32px; border-radius:50%; padding:0; border:1px solid var(--line); background:var(--surface);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex:none;
+}
+.account-avatar{width:100%; height:100%; border-radius:50%; object-fit:cover; display:block;}
+.account-avatar-fallback{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background:var(--accent); color:var(--accent-contrast); font-weight:800; font-size:0.85rem;
+}
+.account-dropdown{
+  position:absolute; right:0; top:calc(100% + 8px); background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.16); padding:0.4rem; min-width:11rem; z-index:20;
+  display:flex; flex-direction:column; gap:0.15rem;
+}
+.account-dropdown-who{
+  font-size:0.75rem; color:var(--ink-soft); padding:0.35rem 0.6rem 0.5rem; border-bottom:1px solid var(--line);
+  margin-bottom:0.25rem; word-break:break-word;
+}
+.account-dropdown button{
+  background:none; border:none; text-align:left; padding:0.5rem 0.6rem; border-radius:6px; font-size:0.85rem;
+  color:var(--ink); cursor:pointer;
+}
+.account-dropdown button:hover{background:var(--surface-2);}
 main{flex:1; padding:1rem 1rem 4rem;}
 .offline-banner{
   background:var(--critical); color:#fff; font-size:0.82rem; font-weight:600;
@@ -1439,7 +1463,30 @@ function renderTopbar(){
       '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
       '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
       '<button class="navbtn' + (UI.view==='household'?' active':'') + '" data-action="go-household">Household</button>' +
-    '</div></div>';
+    '</div>' + renderAccountMenu() + '</div>';
+}
+// A small always-visible way to see who's signed in and sign out (or
+// switch accounts) without navigating to the Household tab first — that
+// tab still exists for invites/members/etc., this is just a shortcut for
+// the two things people reach for constantly: "who am I" and "sign out".
+function renderAccountMenu(){
+  const u = AUTH.user;
+  if (!u) return '';
+  const who = u.displayName || u.email || 'Signed in';
+  const avatar = u.photoURL
+    ? '<img class="account-avatar" src="' + escapeHtml(u.photoURL) + '" alt="">'
+    : '<span class="account-avatar-fallback">' + escapeHtml(who.charAt(0).toUpperCase()) + '</span>';
+  let html = '<div class="account-menu-wrap">' +
+    '<button type="button" class="account-btn" data-action="toggle-account-menu" title="' + escapeHtml(who) + '">' + avatar + '</button>';
+  if (UI.accountMenuOpen){
+    html += '<div class="account-dropdown">' +
+      '<div class="account-dropdown-who">' + escapeHtml(who) + '</div>' +
+      '<button type="button" data-action="go-household">Household settings</button>' +
+      '<button type="button" data-action="sign-out">Sign out</button>' +
+    '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 
 function renderTrips(){
@@ -1938,6 +1985,16 @@ function handleDelete(action, id){
   render();
 }
 
+// Closes the account dropdown on any click outside it — everything the
+// dropdown itself can do (go-household, sign-out) explicitly clears
+// accountMenuOpen too, since those clicks land inside .account-menu-wrap
+// and never reach this listener's "outside" check.
+document.addEventListener('click', function(e){
+  if (!UI.accountMenuOpen) return;
+  if (e.target.closest('.account-menu-wrap')) return;
+  UI.accountMenuOpen = false;
+  render();
+});
 document.addEventListener('click', function(e){
   const el = e.target.closest('[data-action]');
   if (!el) return;
@@ -1986,6 +2043,7 @@ document.addEventListener('click', function(e){
       render();
       break;
     case 'manage-tab': UI.manageTab = el.dataset.cat; saveUISnapshot(); render(); break;
+    case 'toggle-account-menu': UI.accountMenuOpen = !UI.accountMenuOpen; render(); break;
     case 'toggle-item-assignee':
       toggleItemAssignee(el.dataset.cat, el.dataset.item, el.dataset.person);
       render();
@@ -2011,6 +2069,7 @@ document.addEventListener('click', function(e){
     case 'move-before-down': moveBwlItem(el.dataset.item, 1); render(); break;
     case 'sign-in': signIn(); break;
     case 'sign-out':
+      UI.accountMenuOpen = false;
       stopHouseholdListeners();
       signOutUser();
       break;
@@ -2029,6 +2088,7 @@ document.addEventListener('click', function(e){
       UI.confirmingImport = false; render();
       break;
     case 'go-household':
+      UI.accountMenuOpen = false;
       UI.view = 'household'; HOUSEHOLD.membersLoaded = false; saveUISnapshot(); render();
       loadHouseholdMembers();
       break;
