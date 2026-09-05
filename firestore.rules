@@ -40,18 +40,20 @@ service cloud.firestore {
       }
     }
 
-    // Legacy pre-account data (a single shared household with no auth).
-    // Read-only, and only so a signed-in user can run the one-time
-    // "import my existing list" step during onboarding. Once you've
-    // migrated your data (or decided not to), delete this whole block
-    // and the /state and /trips documents themselves.
+    // Legacy pre-account data (a single shared household with no auth,
+    // from before this app had sign-in). The app no longer reads this —
+    // the one-time "import my existing list" step it existed for is
+    // gone, since anyone with the app's URL could otherwise have used it
+    // to pull that original data into their own household. Locked down
+    // rather than deleted here since deleting the documents themselves
+    // requires Firebase console/admin access this rules file doesn't
+    // have; delete /state/master and the /trips collection from the
+    // console, then this whole block, whenever convenient.
     match /state/{doc} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read, write: if false;
     }
     match /trips/{tripId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read, write: if false;
     }
   }
 }
