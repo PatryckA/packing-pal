@@ -494,8 +494,14 @@ function locationName(id){ const l = getLocations().find(l=>l.id===id); return l
    if AT LEAST ONE of its tags was answered yes (e.g. a suit tagged both
    "work" and "formal" shows up for either kind of trip). An untagged
    item always appears.
+
+   Every household starts with the same defaults below, but — same
+   pattern as locations — can add its own on top from Manage list (e.g.
+   "Does the dog need to be packed for?"); once a household adds its
+   first custom one, STATE.master.conditions holds its own full copy
+   (defaults included) rather than replacing them outright.
 --------------------------------------------------------------------- */
-const CONDITIONS = [
+const DEFAULT_CONDITIONS = [
   {id:'swimming', name:'Will there be swimming?', short:'Swimming'},
   {id:'dance', name:'Will there be a dance event?', short:'Dance event'},
   {id:'international', name:'Is it international travel?', short:'International'},
@@ -504,7 +510,10 @@ const CONDITIONS = [
   {id:'formal', name:'Is there a formal occasion?', short:'Formal'},
   {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'}
 ];
-function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? c.name : id; }
+function getConditions(){
+  return (STATE.master.conditions && STATE.master.conditions.length) ? STATE.master.conditions : DEFAULT_CONDITIONS;
+}
+function conditionName(id){ const c = getConditions().find(c=>c.id===id); return c ? c.name : id; }
 
 /* ---------------------------------------------------------------------
    STARTER TEMPLATE — a generic, nobody-in-particular packing list a
@@ -1252,6 +1261,19 @@ function addLocation(name){
   STATE.master.locations.push({ id: uid('loc'), name: name.trim() });
   scheduleMasterSave();
 }
+// Adds a household-specific trip-creation question (e.g. "Does the dog
+// need to be packed for?") alongside the built-in ones — same
+// seed-from-defaults-on-first-use pattern as addLocation() above. The
+// short label is what shows on an item's small "only if" tag chip;
+// falls back to the full question text if left blank.
+function addCondition(name, short){
+  if (!name.trim()) return;
+  if (!STATE.master.conditions || !STATE.master.conditions.length){
+    STATE.master.conditions = DEFAULT_CONDITIONS.map(c => ({ ...c }));
+  }
+  STATE.master.conditions.push({ id: uid('cond'), name: name.trim(), short: (short || name).trim() });
+  scheduleMasterSave();
+}
 function deleteItem(catId, itemId){
   const cat = findCategory(catId);
   if (!cat) return;
@@ -1603,7 +1625,7 @@ function renderTrips(){
         '<div style="border-top:1px dashed var(--line);padding-top:0.6rem;margin-top:0.2rem;">' +
         '<div style="font-size:0.78rem;color:var(--ink-soft);">Optional — what kind of trip is it? Helps show the right things; skip if you\'re not sure.</div>' +
         '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
-      CONDITIONS.forEach(c => {
+      getConditions().forEach(c => {
         html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;padding:0.2rem 0;cursor:pointer;">' +
           '<input type="checkbox" name="condition" value="' + c.id + '"> ' + escapeHtml(c.name) + '</label>';
       });
@@ -1919,6 +1941,11 @@ function renderManage(){
   html += '<form class="add-cat-form" data-action="add-category"><input type="text" name="name" placeholder="+ New category"></form>';
   html += '</div>';
   html += '<form class="add-cat-form" data-action="add-location" style="margin:-0.5rem 0 0.9rem;"><input type="text" name="name" placeholder="+ New location"></form>';
+  html += '<form class="add-cat-form" data-action="add-condition" style="margin:-0.15rem 0 0.9rem;flex-wrap:wrap;">' +
+    '<input type="text" name="name" placeholder="+ New trip question, e.g. Does the dog need to be packed for?" style="width:20rem;max-width:100%;" required>' +
+    '<input type="text" name="short" placeholder="Short label, e.g. Dog" style="width:8rem;" required>' +
+    '<button type="submit" class="btn ghost" style="padding:0.35rem 0.7rem;font-size:0.8rem;">Add</button>' +
+  '</form>';
 
   if (UI.manageTab === '__people'){
     html += '<div class="manage-head"><h2 style="font-size:1.3rem;">People</h2></div>' + renderPeopleList();
@@ -2045,7 +2072,7 @@ function renderManageCategory(cat){
   '</span><select class="location-select" name="location">';
   getLocations().forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
   html += '</select><span class="tag-chip-row" title="Show if any of these apply — leave all unticked to always include">';
-  CONDITIONS.forEach(c => {
+  getConditions().forEach(c => {
     html += '<label class="tag-chip" style="cursor:pointer;"><input type="checkbox" name="tags" value="' + c.id + '" style="display:none;" title="' + escapeHtml(c.name) + '"><span>' + escapeHtml(c.short) + '</span></label>';
   });
   html += '</span><button type="submit" class="btn">Add item</button></form>';
@@ -2064,7 +2091,7 @@ function locationSelectHtml(current, catId, itemId){
 // either), and none on means the item always comes along.
 function tagChipsHtml(currentTags, catId, itemId){
   let html = '';
-  CONDITIONS.forEach(c => {
+  getConditions().forEach(c => {
     const on = currentTags.includes(c.id);
     html += '<button type="button" class="tag-chip' + (on?' on':'') + '" data-action="toggle-item-tag" data-cat="' + catId + '" data-item="' + itemId + '" data-tag="' + c.id + '" title="' + escapeHtml(c.name) + '">' + escapeHtml(c.short) + '</button>';
   });
@@ -2303,6 +2330,9 @@ document.addEventListener('submit', function(e){
     render();
   } else if (action === 'add-location'){
     addLocation(fd.get('name') || '');
+    render();
+  } else if (action === 'add-condition'){
+    addCondition(fd.get('name') || '', fd.get('short') || '');
     render();
   } else if (action === 'add-trip-before'){
     const who = fd.getAll('who');
