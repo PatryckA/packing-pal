@@ -121,6 +121,16 @@ main{flex:1; padding:1rem 1rem 4rem;}
 .trip-card .tdate{font-size:0.72rem; color:var(--ink-soft);}
 .trip-card .tprog{margin-top:auto;}
 .trip-card:hover{border-color:var(--accent);}
+/* A past-trip card isn't itself a button (it needs room for the
+   Unarchive icon alongside the open action, and a button can't contain
+   another button) — .trip-card-open carries the same look and click
+   behaviour as the plain .trip-card button used everywhere else. */
+.trip-card.past{cursor:default;}
+.trip-card-open{
+  all:unset; display:flex; flex-direction:column; gap:0.55rem; width:100%;
+  cursor:pointer; text-align:left; color:inherit; font:inherit;
+}
+.trip-card-unarchive{position:absolute; top:0.6rem; right:0.6rem;}
 .new-trip-card{
   background:transparent; border:1.5px dashed var(--line); border-radius:10px; min-height:118px;
   display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft);
@@ -1547,15 +1557,24 @@ function renderAccountMenu(){
   return html;
 }
 
-function renderTripCard(trip){
+// showUnarchive: past-trip cards get an Unarchive icon alongside the
+// open action, so you don't have to open a trip just to bring it back —
+// same 'toggle-archive-trip' handler the trip's own pack screen uses,
+// which already knows un-archiving means "stay put, no navigation".
+function renderTripCard(trip, showUnarchive){
   const prog = computeProgress(allTripItems(trip), trip.packed, 'all');
   const pct = prog.total ? Math.round((prog.done/prog.total)*100) : 0;
-  return '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' +
-    '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
+  const inner = '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
     '<span class="tdate">Created ' + fmtDate(trip.createdAt) + '</span>' +
     '<span class="tprog"><span class="progress-bar"><span class="progress-fill" style="width:' + pct + '%"></span></span>' +
-    '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>' +
-    '</button>';
+    '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>';
+  if (!showUnarchive){
+    return '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' + inner + '</button>';
+  }
+  return '<div class="trip-card past">' +
+    '<button class="trip-card-open" data-action="open-trip" data-trip="' + trip.id + '">' + inner + '</button>' +
+    '<span class="trip-card-unarchive">' + archiveTripButton(trip) + '</span>' +
+  '</div>';
 }
 function renderTrips(){
   let html = '<h1 class="section-title">Your trips</h1>';
@@ -1607,7 +1626,7 @@ function renderTrips(){
       '<span class="category-count">' + pastTrips.length + '</span>' + chevSvg(!open) + '</span></div>';
     if (open){
       html += '<div class="trip-grid" style="padding:0.9rem;">';
-      pastTrips.forEach(trip => { html += renderTripCard(trip); });
+      pastTrips.forEach(trip => { html += renderTripCard(trip, true); });
       html += '</div>';
     }
     html += '</section>';
