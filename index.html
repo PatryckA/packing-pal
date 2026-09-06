@@ -121,6 +121,16 @@ main{flex:1; padding:1rem 1rem 4rem;}
 .trip-card .tdate{font-size:0.72rem; color:var(--ink-soft);}
 .trip-card .tprog{margin-top:auto;}
 .trip-card:hover{border-color:var(--accent);}
+/* A past-trip card isn't itself a button (it needs room for the
+   Unarchive icon alongside the open action, and a button can't contain
+   another button) — .trip-card-open carries the same look and click
+   behaviour as the plain .trip-card button used everywhere else. */
+.trip-card.past{cursor:default;}
+.trip-card-open{
+  all:unset; display:flex; flex-direction:column; gap:0.55rem; width:100%;
+  cursor:pointer; text-align:left; color:inherit; font:inherit;
+}
+.trip-card-unarchive{position:absolute; top:0.6rem; right:0.6rem;}
 .new-trip-card{
   background:transparent; border:1.5px dashed var(--line); border-radius:10px; min-height:118px;
   display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft);
@@ -484,8 +494,14 @@ function locationName(id){ const l = getLocations().find(l=>l.id===id); return l
    if AT LEAST ONE of its tags was answered yes (e.g. a suit tagged both
    "work" and "formal" shows up for either kind of trip). An untagged
    item always appears.
+
+   Every household starts with the same defaults below, but — same
+   pattern as locations — can add its own on top from Manage list (e.g.
+   "Does the dog need to be packed for?"); once a household adds its
+   first custom one, STATE.master.conditions holds its own full copy
+   (defaults included) rather than replacing them outright.
 --------------------------------------------------------------------- */
-const CONDITIONS = [
+const DEFAULT_CONDITIONS = [
   {id:'swimming', name:'Will there be swimming?', short:'Swimming'},
   {id:'dance', name:'Will there be a dance event?', short:'Dance event'},
   {id:'international', name:'Is it international travel?', short:'International'},
@@ -494,7 +510,10 @@ const CONDITIONS = [
   {id:'formal', name:'Is there a formal occasion?', short:'Formal'},
   {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'}
 ];
-function conditionName(id){ const c = CONDITIONS.find(c=>c.id===id); return c ? c.name : id; }
+function getConditions(){
+  return (STATE.master.conditions && STATE.master.conditions.length) ? STATE.master.conditions : DEFAULT_CONDITIONS;
+}
+function conditionName(id){ const c = getConditions().find(c=>c.id===id); return c ? c.name : id; }
 
 /* ---------------------------------------------------------------------
    STARTER TEMPLATE — a generic, nobody-in-particular packing list a
@@ -1029,10 +1048,14 @@ function deleteTrip(id){
 // "ready", not "over"), so this is the person's own call, either
 // direction, made whenever they decide a trip is actually done with.
 // A single field, so a plain updateDoc is safe — no clobbering risk.
-function toggleArchiveTrip(tripId){
+// Explicit set rather than a toggle: the "Archive trip" button on the
+// disposal screen (see finishPromoteItems) always means archive, even if
+// you got there by hitting Delete on a trip that's already archived —
+// a toggle there would silently un-archive it instead.
+function setTripArchived(tripId, archived){
   const trip = findTrip(tripId);
   if (!trip) return;
-  trip.archivedAt = trip.archivedAt ? null : new Date().toISOString();
+  trip.archivedAt = archived ? new Date().toISOString() : null;
   trackWrite(() => updateDoc(tripDoc(tripId), { archivedAt: trip.archivedAt }));
 }
 // Before-we-leave reminders that only exist on this trip — added mid-trip
@@ -1067,12 +1090,22 @@ function openPromoteItems(tripId){
 function clearPromoteItems(){
   UI.promoteItemsTrip = null; UI.promoteChecked = null;
 }
-// Carries out whichever of the two outcomes the person picked.
+// Carries out whichever of the two outcomes the person picked. Archiving
+// here also hops back to the Trips list with Past trips opened — the
+// same strong "yes, that worked" signal deleting already gives, since
+// staying on the now-archived trip's own screen leaves it looking like
+// nothing happened beyond a save-status flicker.
 function finishPromoteItems(action){
   const tripId = UI.promoteItemsTrip;
   clearPromoteItems();
   if (!tripId) return;
-  if (action === 'delete') deleteTrip(tripId); else toggleArchiveTrip(tripId);
+  if (action === 'delete'){
+    deleteTrip(tripId);
+  } else {
+    setTripArchived(tripId, true);
+    UI.view = 'trips'; UI.currentTripId = null; UI.pastTripsOpen = true;
+    saveUISnapshot();
+  }
 }
 // Copies the checked candidates onto the master before-we-leave list —
 // fresh ids of their own (not the trip-only item's id), assigned to
@@ -1226,6 +1259,19 @@ function addLocation(name){
     STATE.master.locations = DEFAULT_LOCATIONS.map(l => ({ ...l }));
   }
   STATE.master.locations.push({ id: uid('loc'), name: name.trim() });
+  scheduleMasterSave();
+}
+// Adds a household-specific trip-creation question (e.g. "Does the dog
+// need to be packed for?") alongside the built-in ones — same
+// seed-from-defaults-on-first-use pattern as addLocation() above. The
+// short label is what shows on an item's small "only if" tag chip;
+// falls back to the full question text if left blank.
+function addCondition(name, short){
+  if (!name.trim()) return;
+  if (!STATE.master.conditions || !STATE.master.conditions.length){
+    STATE.master.conditions = DEFAULT_CONDITIONS.map(c => ({ ...c }));
+  }
+  STATE.master.conditions.push({ id: uid('cond'), name: name.trim(), short: (short || name).trim() });
   scheduleMasterSave();
 }
 function deleteItem(catId, itemId){
@@ -1533,19 +1579,28 @@ function renderAccountMenu(){
   return html;
 }
 
-function renderTripCard(trip){
+// showUnarchive: past-trip cards get an Unarchive icon alongside the
+// open action, so you don't have to open a trip just to bring it back —
+// same 'toggle-archive-trip' handler the trip's own pack screen uses,
+// which already knows un-archiving means "stay put, no navigation".
+function renderTripCard(trip, showUnarchive){
   const prog = computeProgress(allTripItems(trip), trip.packed, 'all');
   const pct = prog.total ? Math.round((prog.done/prog.total)*100) : 0;
-  return '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' +
-    '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
+  const inner = '<span class="tname">' + escapeHtml(trip.name) + '</span>' +
     '<span class="tdate">Created ' + fmtDate(trip.createdAt) + '</span>' +
     '<span class="tprog"><span class="progress-bar"><span class="progress-fill" style="width:' + pct + '%"></span></span>' +
-    '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>' +
-    '</button>';
+    '<span class="progress-label">' + prog.done + ' / ' + prog.total + ' packed</span></span>';
+  if (!showUnarchive){
+    return '<button class="trip-card" data-action="open-trip" data-trip="' + trip.id + '">' + inner + '</button>';
+  }
+  return '<div class="trip-card past">' +
+    '<button class="trip-card-open" data-action="open-trip" data-trip="' + trip.id + '">' + inner + '</button>' +
+    '<span class="trip-card-unarchive">' + archiveTripButton(trip) + '</span>' +
+  '</div>';
 }
 function renderTrips(){
   let html = '<h1 class="section-title">Your trips</h1>';
-  // Archived trips (see toggleArchiveTrip — a manual "I'm done with
+  // Archived trips (see setTripArchived — a manual "I'm done with
   // this one" action, not tied to pack progress: fully packed still
   // means "ready for an upcoming trip", not "over") sit in their own
   // collapsed section below instead of cluttering the main grid forever.
@@ -1570,7 +1625,7 @@ function renderTrips(){
         '<div style="border-top:1px dashed var(--line);padding-top:0.6rem;margin-top:0.2rem;">' +
         '<div style="font-size:0.78rem;color:var(--ink-soft);">Optional — what kind of trip is it? Helps show the right things; skip if you\'re not sure.</div>' +
         '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
-      CONDITIONS.forEach(c => {
+      getConditions().forEach(c => {
         html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;padding:0.2rem 0;cursor:pointer;">' +
           '<input type="checkbox" name="condition" value="' + c.id + '"> ' + escapeHtml(c.name) + '</label>';
       });
@@ -1593,7 +1648,7 @@ function renderTrips(){
       '<span class="category-count">' + pastTrips.length + '</span>' + chevSvg(!open) + '</span></div>';
     if (open){
       html += '<div class="trip-grid" style="padding:0.9rem;">';
-      pastTrips.forEach(trip => { html += renderTripCard(trip); });
+      pastTrips.forEach(trip => { html += renderTripCard(trip, true); });
       html += '</div>';
     }
     html += '</section>';
@@ -1817,6 +1872,10 @@ function checkSvg(){
 }
 function renderPackRow(trip, item, filter, isBwl){
   const editing = !isBwl && editingAssignees.has(item.id);
+  // Reassigning only makes sense when there's someone else on this trip
+  // to hand it to — with a single traveller, the pencil button would
+  // just open an edit mode with nobody new to tap.
+  const canReassign = tripPeople(trip).length > 1;
   if (filter === 'all'){
     const allDone = isItemPackDone(trip, item, 'all');
     let rightSide;
@@ -1837,7 +1896,7 @@ function renderPackRow(trip, item, filter, isBwl){
         const ca = personChipAttrs(trip, p, on);
         chips += '<button class="pchip ' + ca.cls + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + escapeHtml(personNameInTrip(trip, p)) + '">' + (on ? '✓' : escapeHtml(personInitials(list, p))) + '</button>';
       });
-      rightSide = chips + (isBwl ? '' : moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false));
+      rightSide = chips + (isBwl ? '' : moveTripBwlButton(trip, item.id) + (canReassign ? editAssigneesButton(item.id, false) : ''));
     }
     return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + rightSide + '</span></li>';
   }
@@ -1857,7 +1916,7 @@ function renderPackRow(trip, item, filter, isBwl){
     '<button class="solo-row' + (on?' done':'') + '" style="width:auto;flex:1;border-top:none;" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
     '<span class="solo-box">' + (on ? '<span class="check-mark">✓</span>' : '') + '</span>' +
     '<span class="item-name">' + escapeHtml(item.name) + '</span></button>' +
-    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;display:flex;gap:0.3rem;">' + moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false) + '</span>') +
+    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;display:flex;gap:0.3rem;">' + moveTripBwlButton(trip, item.id) + (canReassign ? editAssigneesButton(item.id, false) : '') + '</span>') +
     '</li>';
 }
 
@@ -1882,6 +1941,11 @@ function renderManage(){
   html += '<form class="add-cat-form" data-action="add-category"><input type="text" name="name" placeholder="+ New category"></form>';
   html += '</div>';
   html += '<form class="add-cat-form" data-action="add-location" style="margin:-0.5rem 0 0.9rem;"><input type="text" name="name" placeholder="+ New location"></form>';
+  html += '<form class="add-cat-form" data-action="add-condition" style="margin:-0.15rem 0 0.9rem;flex-wrap:wrap;">' +
+    '<input type="text" name="name" placeholder="+ New trip question, e.g. Does the dog need to be packed for?" style="width:20rem;max-width:100%;" required>' +
+    '<input type="text" name="short" placeholder="Short label, e.g. Dog" style="width:8rem;" required>' +
+    '<button type="submit" class="btn ghost" style="padding:0.35rem 0.7rem;font-size:0.8rem;">Add</button>' +
+  '</form>';
 
   if (UI.manageTab === '__people'){
     html += '<div class="manage-head"><h2 style="font-size:1.3rem;">People</h2></div>' + renderPeopleList();
@@ -2008,7 +2072,7 @@ function renderManageCategory(cat){
   '</span><select class="location-select" name="location">';
   getLocations().forEach(l => { html += '<option value="' + l.id + '">' + escapeHtml(l.name) + '</option>'; });
   html += '</select><span class="tag-chip-row" title="Show if any of these apply — leave all unticked to always include">';
-  CONDITIONS.forEach(c => {
+  getConditions().forEach(c => {
     html += '<label class="tag-chip" style="cursor:pointer;"><input type="checkbox" name="tags" value="' + c.id + '" style="display:none;" title="' + escapeHtml(c.name) + '"><span>' + escapeHtml(c.short) + '</span></label>';
   });
   html += '</span><button type="submit" class="btn">Add item</button></form>';
@@ -2027,7 +2091,7 @@ function locationSelectHtml(current, catId, itemId){
 // either), and none on means the item always comes along.
 function tagChipsHtml(currentTags, catId, itemId){
   let html = '';
-  CONDITIONS.forEach(c => {
+  getConditions().forEach(c => {
     const on = currentTags.includes(c.id);
     html += '<button type="button" class="tag-chip' + (on?' on':'') + '" data-action="toggle-item-tag" data-cat="' + catId + '" data-item="' + itemId + '" data-tag="' + c.id + '" title="' + escapeHtml(c.name) + '">' + escapeHtml(c.short) + '</button>';
   });
@@ -2172,7 +2236,18 @@ document.addEventListener('click', function(e){
         if (trip && !trip.archivedAt && newBwlItemsForTrip(trip).length){
           openPromoteItems(el.dataset.trip); render(); break;
         }
-        toggleArchiveTrip(el.dataset.trip);
+        if (trip && !trip.archivedAt){
+          // Archiving: hop back to Trips with Past trips opened, same as
+          // the promote-screen's archive path — staying put on the
+          // now-archived trip's own screen barely shows anything changed.
+          setTripArchived(el.dataset.trip, true);
+          UI.view = 'trips'; UI.currentTripId = null; UI.pastTripsOpen = true;
+          saveUISnapshot();
+        } else if (trip){
+          // Un-archiving: stay right where you are, you're probably
+          // about to keep working on it.
+          setTripArchived(el.dataset.trip, false);
+        }
       }
       render();
       break;
@@ -2255,6 +2330,9 @@ document.addEventListener('submit', function(e){
     render();
   } else if (action === 'add-location'){
     addLocation(fd.get('name') || '');
+    render();
+  } else if (action === 'add-condition'){
+    addCondition(fd.get('name') || '', fd.get('short') || '');
     render();
   } else if (action === 'add-trip-before'){
     const who = fd.getAll('who');
