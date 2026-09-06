@@ -53,12 +53,17 @@ a{color:inherit;}
 .app-shell{max-width:640px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
 .topbar{
   position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:0.85rem 1rem;
-  display:flex; align-items:center; justify-content:space-between; gap:0.75rem;
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:0.85rem 1rem 0.3rem;
 }
-.brand{display:flex; align-items:baseline; gap:0.4rem;}
-.brand-mark{font-family:var(--font-display); font-size:1.35rem; font-weight:700; letter-spacing:-0.01em;}
+.topbar-row{display:flex; align-items:center; justify-content:space-between; gap:0.75rem;}
+.brand{display:flex; align-items:baseline; gap:0.4rem; flex-shrink:0;}
+.brand-mark{font-family:var(--font-display); font-size:1.35rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap;}
 .brand-tag{font-size:0.68rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.08em; display:none;}
+/* Its own row rather than sharing one with "Packing Pal" — a fixed
+   height reserved always, so nothing shifts when the text appears or
+   clears, and never anything for the brand text to compete for space
+   with (and wrap onto two lines over) on a narrow screen. */
+.save-status-row{min-height:1.05rem; margin-top:0.25rem;}
 .save-status{font-size:0.68rem; font-weight:700; white-space:nowrap;}
 .save-status.saving{color:var(--ink-soft);}
 .save-status.saved{color:var(--done);}
@@ -1470,10 +1475,54 @@ function flushHouseholdNameSaveNow(){
 }
 
 /* ---------------------------------------------------------------------
-   Rendering
+   Rendering — every render() replaces #app's innerHTML wholesale (no
+   virtual DOM / diffing), which is what keeps this file simple, but it
+   means a render firing while someone's mid-edit in a text box —
+   another device's change arriving, this device's own debounced save
+   landing and echoing back through the Firestore listener, the
+   save-status indicator ticking through saving/saved/idle — silently
+   destroys and recreates that input. Losing focus that way mid-typing
+   is what closes the on-screen keyboard on a phone (and drops the
+   cursor position everywhere else) even though nothing the person did
+   caused it. captureFocus()/restoreFocus() below carry a focused
+   data-field input (by its own identifying attributes, so it survives
+   the field's DOM node being torn down and rebuilt) and its selection
+   across that replacement, so typing is never interrupted by a render
+   that has nothing to do with the field being edited.
 --------------------------------------------------------------------- */
+function focusSelector(el){
+  const ds = el.dataset || {};
+  if (!ds.field) return null;
+  let sel = el.tagName.toLowerCase() + '[data-field="' + ds.field + '"]';
+  if (ds.cat) sel += '[data-cat="' + ds.cat + '"]';
+  if (ds.item) sel += '[data-item="' + ds.item + '"]';
+  if (ds.person) sel += '[data-person="' + ds.person + '"]';
+  return sel;
+}
+function captureFocus(app){
+  const active = document.activeElement;
+  if (!active || !app.contains(active)) return null;
+  if (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA') return null;
+  const selector = focusSelector(active);
+  if (!selector) return null;
+  return { selector: selector, start: active.selectionStart, end: active.selectionEnd, value: active.value };
+}
+function restoreFocus(app, saved){
+  if (!saved) return;
+  let el;
+  try { el = app.querySelector(saved.selector); } catch(e){ return; }
+  // Only refocus if it's still recognisably the same field with the same
+  // value — if the underlying item/category/person was deleted, or its
+  // value changed from elsewhere (another device's edit, or this
+  // render's own state update), silently do nothing rather than yank
+  // focus onto content the person wasn't actually looking at.
+  if (!el || el.value !== saved.value) return;
+  el.focus();
+  try { el.setSelectionRange(saved.start, saved.end); } catch(e){}
+}
 function render(){
   const app = document.getElementById('app');
+  const savedFocus = captureFocus(app);
   if (!AUTH.resolved){
     app.innerHTML = '<div class="loading-state">Loading Packing Pal…</div>';
     return;
@@ -1488,6 +1537,7 @@ function render(){
   }
   if (!HOUSEHOLD.id){
     app.innerHTML = renderOnboarding();
+    restoreFocus(app, savedFocus);
     return;
   }
   if (!masterLoaded || !tripsLoaded){
@@ -1496,6 +1546,7 @@ function render(){
   }
   if (getPeople().length === 0){
     app.innerHTML = renderOnboardingPeople();
+    restoreFocus(app, savedFocus);
     return;
   }
   let body = '';
@@ -1511,6 +1562,7 @@ function render(){
   else { UI.view = 'trips'; body += renderTrips(); }
   body += '</main></div>';
   app.innerHTML = body;
+  restoreFocus(app, savedFocus);
 }
 function renderSignIn(){
   return '<div class="authscreen">' +
@@ -1565,12 +1617,23 @@ function renderOnboardingPeople(){
 }
 
 function renderTopbar(){
+  // The save-status text lives on its own row below the brand/nav row,
+  // not inline with "Packing Pal" — sharing a row with it meant that on
+  // a narrow screen, "Saving…"/"✓ Saved" competing for the same space
+  // could squeeze the brand text into wrapping onto two lines. Its own
+  // row is reserved at a fixed height regardless of whether there's
+  // anything to show, so nothing above or below it shifts when it
+  // appears or clears.
   return '<div class="topbar">' +
-    '<div class="brand"><span class="brand-mark">Packing Pal</span>' + renderSaveStatus() + '</div>' +
-    '<div class="topnav">' +
-      '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
-      '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
-    '</div>' + renderAccountMenu() + '</div>';
+    '<div class="topbar-row">' +
+      '<div class="brand"><span class="brand-mark">Packing Pal</span></div>' +
+      '<div class="topnav">' +
+        '<button class="navbtn' + (UI.view==='trips'?' active':'') + '" data-action="go-trips">Trips</button>' +
+        '<button class="navbtn' + (UI.view==='manage'?' active':'') + '" data-action="go-manage">Manage list</button>' +
+      '</div>' + renderAccountMenu() +
+    '</div>' +
+    '<div class="save-status-row">' + renderSaveStatus() + '</div>' +
+  '</div>';
 }
 // A small always-visible way to see who's signed in and sign out (or
 // switch accounts) without navigating to the Household tab first — that
