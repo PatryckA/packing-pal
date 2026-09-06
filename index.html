@@ -1850,6 +1850,10 @@ function checkSvg(){
 }
 function renderPackRow(trip, item, filter, isBwl){
   const editing = !isBwl && editingAssignees.has(item.id);
+  // Reassigning only makes sense when there's someone else on this trip
+  // to hand it to — with a single traveller, the pencil button would
+  // just open an edit mode with nobody new to tap.
+  const canReassign = tripPeople(trip).length > 1;
   if (filter === 'all'){
     const allDone = isItemPackDone(trip, item, 'all');
     let rightSide;
@@ -1870,7 +1874,7 @@ function renderPackRow(trip, item, filter, isBwl){
         const ca = personChipAttrs(trip, p, on);
         chips += '<button class="pchip ' + ca.cls + (on?' on':'') + '" style="' + ca.style + '" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + p + '" title="' + escapeHtml(personNameInTrip(trip, p)) + '">' + (on ? '✓' : escapeHtml(personInitials(list, p))) + '</button>';
       });
-      rightSide = chips + (isBwl ? '' : moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false));
+      rightSide = chips + (isBwl ? '' : moveTripBwlButton(trip, item.id) + (canReassign ? editAssigneesButton(item.id, false) : ''));
     }
     return '<li class="item-row' + (allDone?' done':'') + '"><span class="item-name">' + escapeHtml(item.name) + '</span><span class="chip-row">' + rightSide + '</span></li>';
   }
@@ -1890,7 +1894,7 @@ function renderPackRow(trip, item, filter, isBwl){
     '<button class="solo-row' + (on?' done':'') + '" style="width:auto;flex:1;border-top:none;" data-action="toggle-chip" data-item="' + item.id + '" data-person="' + filter + '">' +
     '<span class="solo-box">' + (on ? '<span class="check-mark">✓</span>' : '') + '</span>' +
     '<span class="item-name">' + escapeHtml(item.name) + '</span></button>' +
-    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;display:flex;gap:0.3rem;">' + moveTripBwlButton(trip, item.id) + editAssigneesButton(item.id, false) + '</span>') +
+    (isBwl ? '' : '<span style="margin-right:0.9rem;flex:none;display:flex;gap:0.3rem;">' + moveTripBwlButton(trip, item.id) + (canReassign ? editAssigneesButton(item.id, false) : '') + '</span>') +
     '</li>';
 }
 
