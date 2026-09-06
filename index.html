@@ -276,6 +276,8 @@ main{flex:1; padding:1rem 1rem 4rem;}
 }
 .btn:hover{background:var(--accent-strong);}
 .btn.ghost{background:none; color:var(--ink); border:1px solid var(--line);}
+.btn.danger{background:none; color:var(--critical); border:1px solid var(--critical);}
+.btn.danger:hover{background:var(--critical); color:#fff;}
 .add-cat-form{display:flex; gap:0.4rem; align-items:center; flex:none;}
 .add-cat-form input{
   background:var(--surface); border:1px dashed var(--line); border-radius:20px; padding:0.35rem 0.7rem;
@@ -1044,32 +1046,33 @@ function newBwlItemsForTrip(trip){
   STATE.master.categories.forEach(c => c.items.forEach(i => masterIds.add(i.id)));
   return trip.beforeWeLeave.filter(i => !masterIds.has(i.id));
 }
-// Archiving or deleting a trip is also the natural moment to ask "keep
-// any of these for next time?" — surfaced only when there's actually
-// something new to ask about; the common case (nothing trip-only added)
-// skips straight to the action, same as before this existed.
-function startPromoteItems(tripId, action){
+// Opens the "what should happen to this trip?" screen (doesn't act on
+// anything yet) — Archive vs Delete permanently, either one also
+// offering to copy this trip's own reminders onto the master list first.
+// Called unconditionally from Delete's confirm tap (so "archive instead"
+// is always on offer there, whatever state the trip's in), and from the
+// Archive button only when there's actually something to ask about —
+// otherwise archiving stays the one-tap action it's always been.
+function openPromoteItems(tripId){
   const trip = findTrip(tripId);
   const candidates = trip ? newBwlItemsForTrip(trip) : [];
-  if (!candidates.length) return false;
   UI.promoteItemsTrip = tripId;
-  UI.promoteItemsAction = action;
   UI.promoteChecked = new Set(candidates.map(i => i.id));
-  return true;
 }
-function finishPromoteItems(){
+// Navigating away via the topbar (rather than actually resolving the
+// screen) would otherwise leave it pending — and it'd resurface out of
+// nowhere if you came back to this same trip later. Called both when the
+// screen resolves and from every way to leave the pack screen for
+// something else.
+function clearPromoteItems(){
+  UI.promoteItemsTrip = null; UI.promoteChecked = null;
+}
+// Carries out whichever of the two outcomes the person picked.
+function finishPromoteItems(action){
   const tripId = UI.promoteItemsTrip;
-  const action = UI.promoteItemsAction;
-  UI.promoteItemsTrip = null; UI.promoteItemsAction = null; UI.promoteChecked = null;
+  clearPromoteItems();
   if (!tripId) return;
   if (action === 'delete') deleteTrip(tripId); else toggleArchiveTrip(tripId);
-}
-// Navigating away via the topbar (rather than Cancel/Skip/Add) would
-// otherwise leave the prompt pending — and it'd resurface out of nowhere
-// if you came back to this same trip later. Called from every way to
-// leave the pack screen for something else.
-function clearPromoteItems(){
-  UI.promoteItemsTrip = null; UI.promoteItemsAction = null; UI.promoteChecked = null;
 }
 // Copies the checked candidates onto the master before-we-leave list —
 // fresh ids of their own (not the trip-only item's id), assigned to
@@ -1604,25 +1607,28 @@ function allTripItems(trip){
 }
 
 // Shown instead of the normal pack screen while archiving/deleting a
-// trip that has reminders only it knows about — a focused yes/no moment
-// rather than mixed into the regular pack list.
+// trip that has reminders only it knows about, and (always, from the
+// Delete confirm) a chance to archive instead — a focused decision
+// point rather than mixed into the regular pack list.
 function renderPromoteItems(trip){
   const candidates = newBwlItemsForTrip(trip);
-  const deleting = UI.promoteItemsAction === 'delete';
   let html = '<div class="onboard-card">';
-  html += '<h2>Keep any of these for next time?</h2>';
-  html += '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">This trip has "before we leave" reminders that aren\'t on your master list yet. Tick the ones worth adding — anything left unticked stays just with this trip' + (deleting ? ' and is gone once it\'s deleted' : '') + '.</p>';
-  html += '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
-  candidates.forEach(item => {
-    const checked = UI.promoteChecked.has(item.id);
-    html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.9rem;padding:0.25rem 0;cursor:pointer;">' +
-      '<input type="checkbox" data-action="toggle-promote-item" data-item="' + item.id + '"' + (checked?' checked':'') + '> ' +
-      escapeHtml(item.name) + '</label>';
-  });
-  html += '</div>';
+  html += '<h2>What should happen to this trip?</h2>';
+  if (candidates.length){
+    html += '<p style="color:var(--ink-soft);font-size:0.88rem;margin:0;">This trip has "before we leave" reminders that aren\'t on your master list yet. Tick any worth keeping for next time — they\'ll be added either way, whether you archive or delete below.</p>';
+    html += '<div style="display:flex;flex-direction:column;gap:0.15rem;">';
+    candidates.forEach(item => {
+      const checked = UI.promoteChecked.has(item.id);
+      html += '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.9rem;padding:0.25rem 0;cursor:pointer;">' +
+        '<input type="checkbox" data-action="toggle-promote-item" data-item="' + item.id + '"' + (checked?' checked':'') + '> ' +
+        escapeHtml(item.name) + '</label>';
+    });
+    html += '</div>';
+  }
+  html += '<p style="color:var(--ink-soft);font-size:0.82rem;margin:0;">Archiving tucks it into Past trips — you can bring it back anytime. Deleting removes it for good.</p>';
   html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem;">' +
-    '<button type="button" class="btn" data-action="confirm-promote-items">Add checked &amp; ' + (deleting?'delete trip':'archive trip') + '</button>' +
-    '<button type="button" class="btn ghost" data-action="skip-promote-items">Skip &amp; ' + (deleting?'delete':'archive') + '</button>' +
+    '<button type="button" class="btn" data-action="finish-promote-items" data-final="archive">Archive trip</button>' +
+    '<button type="button" class="btn danger" data-action="finish-promote-items" data-final="delete">Delete trip permanently</button>' +
     '<button type="button" class="btn ghost" data-action="cancel-promote-items">Cancel</button>' +
   '</div></div>';
   return html;
@@ -2065,7 +2071,10 @@ function handleDelete(action, id){
   if (!armedDeletes.has(key)){ armDelete(key); return; }
   armedDeletes.delete(key);
   if (action === 'delete-trip'){
-    if (!startPromoteItems(id, 'delete')) deleteTrip(id);
+    // Always route through the disposal screen — "archive instead?" is
+    // worth offering on every delete, not just when there happen to be
+    // trip-only reminders to ask about.
+    openPromoteItems(id);
   }
   else if (action === 'delete-category') deleteCategory(id);
   else if (action === 'delete-item'){ const [catId,itemId] = id.split('::'); deleteItem(catId,itemId); }
@@ -2156,9 +2165,13 @@ document.addEventListener('click', function(e){
       break;
     case 'toggle-archive-trip':
       { const trip = findTrip(el.dataset.trip);
-        // Only archiving (not un-archiving) is worth asking about — you're
-        // not adding anything new by putting a trip back into the active list.
-        if (trip && !trip.archivedAt && startPromoteItems(el.dataset.trip, 'archive')){ render(); break; }
+        // Un-archiving skips the screen — nothing new to ask about when
+        // putting a trip back into the active list. Archiving only opens
+        // it when there's actually something to offer promoting;
+        // otherwise archiving stays the one-tap action it's always been.
+        if (trip && !trip.archivedAt && newBwlItemsForTrip(trip).length){
+          openPromoteItems(el.dataset.trip); render(); break;
+        }
         toggleArchiveTrip(el.dataset.trip);
       }
       render();
@@ -2166,17 +2179,13 @@ document.addEventListener('click', function(e){
     case 'toggle-promote-item':
       { const id = el.dataset.item; if (UI.promoteChecked.has(id)) UI.promoteChecked.delete(id); else UI.promoteChecked.add(id); render(); }
       break;
-    case 'confirm-promote-items':
+    case 'finish-promote-items':
       promoteCheckedItems();
-      finishPromoteItems();
-      render();
-      break;
-    case 'skip-promote-items':
-      finishPromoteItems();
+      finishPromoteItems(el.dataset.final);
       render();
       break;
     case 'cancel-promote-items':
-      UI.promoteItemsTrip = null; UI.promoteItemsAction = null; UI.promoteChecked = null;
+      clearPromoteItems();
       render();
       break;
     case 'toggle-past-trips': UI.pastTripsOpen = !UI.pastTripsOpen; render(); break;
