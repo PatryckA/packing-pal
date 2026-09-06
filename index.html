@@ -1356,9 +1356,26 @@ function deleteCategory(catId){
   if (UI.manageTab === catId) UI.manageTab = null;
   scheduleMasterSave();
 }
-function addBwl(name, who){
+function addBwl(name, who, tags){
   if (!name.trim()) return;
-  STATE.master.beforeWeLeave.push({id: uid('bwl'), name: name.trim(), who: who.length ? who : getPeople().map(p => p.id)});
+  STATE.master.beforeWeLeave.push({
+    id: uid('bwl'), name: name.trim(), who: who.length ? who : getPeople().map(p => p.id), tags: tags || []
+  });
+  scheduleMasterSave();
+}
+// Toggles one "only if" tag on a before-we-leave reminder — same
+// createTrip() filtering category items already get (an item with no
+// tags always comes along; a tagged one only if a matching survey
+// question was answered yes) now applies to reminders too, since
+// createTrip() already ran beforeWeLeave through the same keep() filter
+// as categories — reminders just never had a way to carry tags before.
+function toggleBwlItemTag(itemId, tagId){
+  const item = STATE.master.beforeWeLeave.find(i => i.id === itemId);
+  if (!item) return;
+  const tags = itemTags(item);
+  const idx = tags.indexOf(tagId);
+  if (idx === -1) tags.push(tagId); else tags.splice(idx, 1);
+  item.tags = tags;
   scheduleMasterSave();
 }
 function deleteBwl(itemId){
@@ -2097,12 +2114,22 @@ function tagChipsHtml(currentTags, catId, itemId){
   });
   return html;
 }
+// Same as tagChipsHtml, for a before-we-leave reminder — no category to
+// carry, so its own action/data-item rather than reusing toggle-item-tag.
+function bwlTagChipsHtml(currentTags, itemId){
+  let html = '';
+  getConditions().forEach(c => {
+    const on = currentTags.includes(c.id);
+    html += '<button type="button" class="tag-chip' + (on?' on':'') + '" data-action="toggle-before-tag" data-item="' + itemId + '" data-tag="' + c.id + '" title="' + escapeHtml(c.name) + '">' + escapeHtml(c.short) + '</button>';
+  });
+  return html;
+}
 function renderManageBwl(){
   const items = STATE.master.beforeWeLeave;
   let html = '<div class="manage-head"><h2 style="font-size:1.3rem;">Before we leave</h2></div>';
   if (items.length === 0) html += '<p class="manage-empty">No reminders yet — add one below.</p>';
   items.forEach((item, idx) => {
-    html += '<div class="manage-row">' + moveBwlButtons(item.id, idx, items.length) +
+    html += '<div class="manage-row has-location">' + moveBwlButtons(item.id, idx, items.length) +
       '<input class="manage-name-input" type="text" value="' + escapeHtml(item.name) + '" data-field="before-name" data-item="' + item.id + '">';
     html += '<span class="who-toggle">';
     { const list = getPeople();
@@ -2113,12 +2140,17 @@ function renderManageBwl(){
     }); }
     html += '</span>';
     html += deleteButton('delete-before', item.id, 'Delete reminder');
+    html += '<div class="location-row tag-row">Show if any apply:<span class="tag-chip-row">' + bwlTagChipsHtml(itemTags(item), item.id) + '</span></div>';
     html += '</div>';
   });
   html += '<form class="add-row-form" data-action="add-before">' +
     '<input type="text" name="name" placeholder="Add a before-we-leave reminder…" required>' +
     '<span class="who-toggle">' + whoCheckboxChips(null) +
-  '</span><button type="submit" class="btn">Add reminder</button></form>';
+  '</span><span class="tag-chip-row" title="Show if any of these apply — leave all unticked to always include">';
+  getConditions().forEach(c => {
+    html += '<label class="tag-chip" style="cursor:pointer;"><input type="checkbox" name="tags" value="' + c.id + '" style="display:none;" title="' + escapeHtml(c.name) + '"><span>' + escapeHtml(c.short) + '</span></label>';
+  });
+  html += '</span><button type="submit" class="btn">Add reminder</button></form>';
   return html;
 }
 
@@ -2224,6 +2256,10 @@ document.addEventListener('click', function(e){
       toggleBwlAssignee(el.dataset.item, el.dataset.person);
       render();
       break;
+    case 'toggle-before-tag':
+      toggleBwlItemTag(el.dataset.item, el.dataset.tag);
+      render();
+      break;
     case 'delete-trip': case 'delete-category': case 'delete-item': case 'delete-before': case 'delete-person':
       handleDelete(action, el.dataset.id);
       break;
@@ -2323,7 +2359,8 @@ document.addEventListener('submit', function(e){
     render();
   } else if (action === 'add-before'){
     const who = fd.getAll('who');
-    addBwl(fd.get('name') || '', who);
+    const tags = fd.getAll('tags');
+    addBwl(fd.get('name') || '', who, tags);
     render();
   } else if (action === 'add-category'){
     addCategory(fd.get('name') || '');
