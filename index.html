@@ -1470,10 +1470,54 @@ function flushHouseholdNameSaveNow(){
 }
 
 /* ---------------------------------------------------------------------
-   Rendering
+   Rendering — every render() replaces #app's innerHTML wholesale (no
+   virtual DOM / diffing), which is what keeps this file simple, but it
+   means a render firing while someone's mid-edit in a text box —
+   another device's change arriving, this device's own debounced save
+   landing and echoing back through the Firestore listener, the
+   save-status indicator ticking through saving/saved/idle — silently
+   destroys and recreates that input. Losing focus that way mid-typing
+   is what closes the on-screen keyboard on a phone (and drops the
+   cursor position everywhere else) even though nothing the person did
+   caused it. captureFocus()/restoreFocus() below carry a focused
+   data-field input (by its own identifying attributes, so it survives
+   the field's DOM node being torn down and rebuilt) and its selection
+   across that replacement, so typing is never interrupted by a render
+   that has nothing to do with the field being edited.
 --------------------------------------------------------------------- */
+function focusSelector(el){
+  const ds = el.dataset || {};
+  if (!ds.field) return null;
+  let sel = el.tagName.toLowerCase() + '[data-field="' + ds.field + '"]';
+  if (ds.cat) sel += '[data-cat="' + ds.cat + '"]';
+  if (ds.item) sel += '[data-item="' + ds.item + '"]';
+  if (ds.person) sel += '[data-person="' + ds.person + '"]';
+  return sel;
+}
+function captureFocus(app){
+  const active = document.activeElement;
+  if (!active || !app.contains(active)) return null;
+  if (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA') return null;
+  const selector = focusSelector(active);
+  if (!selector) return null;
+  return { selector: selector, start: active.selectionStart, end: active.selectionEnd, value: active.value };
+}
+function restoreFocus(app, saved){
+  if (!saved) return;
+  let el;
+  try { el = app.querySelector(saved.selector); } catch(e){ return; }
+  // Only refocus if it's still recognisably the same field with the same
+  // value — if the underlying item/category/person was deleted, or its
+  // value changed from elsewhere (another device's edit, or this
+  // render's own state update), silently do nothing rather than yank
+  // focus onto content the person wasn't actually looking at.
+  if (!el || el.value !== saved.value) return;
+  el.focus();
+  try { el.setSelectionRange(saved.start, saved.end); } catch(e){}
+}
 function render(){
   const app = document.getElementById('app');
+  const savedFocus = captureFocus(app);
   if (!AUTH.resolved){
     app.innerHTML = '<div class="loading-state">Loading Packing Pal…</div>';
     return;
@@ -1488,6 +1532,7 @@ function render(){
   }
   if (!HOUSEHOLD.id){
     app.innerHTML = renderOnboarding();
+    restoreFocus(app, savedFocus);
     return;
   }
   if (!masterLoaded || !tripsLoaded){
@@ -1496,6 +1541,7 @@ function render(){
   }
   if (getPeople().length === 0){
     app.innerHTML = renderOnboardingPeople();
+    restoreFocus(app, savedFocus);
     return;
   }
   let body = '';
@@ -1511,6 +1557,7 @@ function render(){
   else { UI.view = 'trips'; body += renderTrips(); }
   body += '</main></div>';
   app.innerHTML = body;
+  restoreFocus(app, savedFocus);
 }
 function renderSignIn(){
   return '<div class="authscreen">' +
