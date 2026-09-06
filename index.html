@@ -1029,10 +1029,14 @@ function deleteTrip(id){
 // "ready", not "over"), so this is the person's own call, either
 // direction, made whenever they decide a trip is actually done with.
 // A single field, so a plain updateDoc is safe — no clobbering risk.
-function toggleArchiveTrip(tripId){
+// Explicit set rather than a toggle: the "Archive trip" button on the
+// disposal screen (see finishPromoteItems) always means archive, even if
+// you got there by hitting Delete on a trip that's already archived —
+// a toggle there would silently un-archive it instead.
+function setTripArchived(tripId, archived){
   const trip = findTrip(tripId);
   if (!trip) return;
-  trip.archivedAt = trip.archivedAt ? null : new Date().toISOString();
+  trip.archivedAt = archived ? new Date().toISOString() : null;
   trackWrite(() => updateDoc(tripDoc(tripId), { archivedAt: trip.archivedAt }));
 }
 // Before-we-leave reminders that only exist on this trip — added mid-trip
@@ -1067,12 +1071,22 @@ function openPromoteItems(tripId){
 function clearPromoteItems(){
   UI.promoteItemsTrip = null; UI.promoteChecked = null;
 }
-// Carries out whichever of the two outcomes the person picked.
+// Carries out whichever of the two outcomes the person picked. Archiving
+// here also hops back to the Trips list with Past trips opened — the
+// same strong "yes, that worked" signal deleting already gives, since
+// staying on the now-archived trip's own screen leaves it looking like
+// nothing happened beyond a save-status flicker.
 function finishPromoteItems(action){
   const tripId = UI.promoteItemsTrip;
   clearPromoteItems();
   if (!tripId) return;
-  if (action === 'delete') deleteTrip(tripId); else toggleArchiveTrip(tripId);
+  if (action === 'delete'){
+    deleteTrip(tripId);
+  } else {
+    setTripArchived(tripId, true);
+    UI.view = 'trips'; UI.currentTripId = null; UI.pastTripsOpen = true;
+    saveUISnapshot();
+  }
 }
 // Copies the checked candidates onto the master before-we-leave list —
 // fresh ids of their own (not the trip-only item's id), assigned to
@@ -1545,7 +1559,7 @@ function renderTripCard(trip){
 }
 function renderTrips(){
   let html = '<h1 class="section-title">Your trips</h1>';
-  // Archived trips (see toggleArchiveTrip — a manual "I'm done with
+  // Archived trips (see setTripArchived — a manual "I'm done with
   // this one" action, not tied to pack progress: fully packed still
   // means "ready for an upcoming trip", not "over") sit in their own
   // collapsed section below instead of cluttering the main grid forever.
@@ -2172,7 +2186,18 @@ document.addEventListener('click', function(e){
         if (trip && !trip.archivedAt && newBwlItemsForTrip(trip).length){
           openPromoteItems(el.dataset.trip); render(); break;
         }
-        toggleArchiveTrip(el.dataset.trip);
+        if (trip && !trip.archivedAt){
+          // Archiving: hop back to Trips with Past trips opened, same as
+          // the promote-screen's archive path — staying put on the
+          // now-archived trip's own screen barely shows anything changed.
+          setTripArchived(el.dataset.trip, true);
+          UI.view = 'trips'; UI.currentTripId = null; UI.pastTripsOpen = true;
+          saveUISnapshot();
+        } else if (trip){
+          // Un-archiving: stay right where you are, you're probably
+          // about to keep working on it.
+          setTripArchived(el.dataset.trip, false);
+        }
       }
       render();
       break;
