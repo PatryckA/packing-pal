@@ -513,7 +513,8 @@ const DEFAULT_CONDITIONS = [
   {id:'cold', name:'Will it be very cold?', short:'Very cold'},
   {id:'work', name:'Is it a work trip?', short:'Work trip'},
   {id:'formal', name:'Is there a formal occasion?', short:'Formal'},
-  {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'}
+  {id:'roadtrip', name:'Is it a road trip?', short:'Road trip'},
+  {id:'workout', name:'Will you be working out?', short:'workout?'}
 ];
 function getConditions(){
   return (STATE.master.conditions && STATE.master.conditions.length) ? STATE.master.conditions : DEFAULT_CONDITIONS;
@@ -546,7 +547,7 @@ const STARTER_TEMPLATE = {
       'Printed travel bookings & tickets', 'Wallet', 'Debit / credit cards', ['Pen (for arrival forms)', ['international']]
     ] },
     { name: 'Clothing', location: 'bedroom', items: [
-      'Underwear', 'Socks', 'Pyjamas', 'T-shirts', 'Casual tops', 'Workout clothes',
+      'Underwear', 'Socks', 'Pyjamas', 'T-shirts', 'Casual tops', ['Workout clothes', ['workout']],
       ['Business shirt', ['work','formal']], 'Jumper / sweater', ['Jacket', ['cold']], ['Hoodie / puffer jacket', ['cold']],
       'Rain jacket / poncho', 'Jeans / trousers', 'Shorts', 'Belt', ['Tights', ['cold']], 'Dress', ['Coat', ['cold']],
       ['Swimwear', ['swimming']], ['Rash vest', ['swimming']],
